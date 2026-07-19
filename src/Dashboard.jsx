@@ -14,14 +14,67 @@ function stageLabel(id) {
   return STAGE_LABELS[id] || id || "Unknown";
 }
 
-function Section({ title, children, right }) {
+function Section({ id, title, children, right }) {
   return (
-    <div style={{ marginBottom: 32 }}>
+    <div id={id} style={{ marginBottom: 32, scrollMarginTop: 68 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 800, margin: 0 }}>{title}</h2>
         {right}
       </div>
       {children}
+    </div>
+  );
+}
+
+const NAV_SECTIONS = [
+  { id: "payments", label: "Payments" },
+  { id: "pipeline", label: "Pipeline & Leads" },
+  { id: "calls", label: "Call Activity" },
+  { id: "health", label: "Business Health" },
+  { id: "leads", label: "Lead Sources" },
+  { id: "costs", label: "Costs" },
+];
+
+function NavBar({ activeId }) {
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+        display: "flex",
+        gap: 6,
+        overflowX: "auto",
+        padding: "10px 0",
+        marginBottom: 24,
+        background: "rgba(1,2,10,0.92)",
+        backdropFilter: "blur(6px)",
+        borderBottom: `1px solid ${C.line}`,
+      }}
+    >
+      {NAV_SECTIONS.map((s) => {
+        const active = activeId === s.id;
+        return (
+          <button
+            key={s.id}
+            onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            style={{
+              flexShrink: 0,
+              padding: "7px 14px",
+              borderRadius: 20,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: C.body,
+              cursor: "pointer",
+              border: active ? "none" : `1px solid ${C.lineStrong}`,
+              background: active ? `linear-gradient(180deg, ${C.blue}, ${C.blueDeep})` : "transparent",
+              color: active ? "#fff" : C.textDim,
+            }}
+          >
+            {s.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -97,6 +150,7 @@ export default function Dashboard({ onSignedOut }) {
   const [state, setState] = useState("loading"); // loading | ready | error
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeId, setActiveId] = useState(NAV_SECTIONS[0].id);
 
   const load = useCallback(async (silent) => {
     if (silent) setRefreshing(true);
@@ -114,6 +168,24 @@ export default function Dashboard({ onSignedOut }) {
   useEffect(() => {
     load(false);
   }, [load]);
+
+  useEffect(() => {
+    if (!data) return;
+    const elements = NAV_SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean);
+    if (elements.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          setActiveId(visible[0].target.id);
+        }
+      },
+      { rootMargin: "-64px 0px -70% 0px", threshold: 0 },
+    );
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [data]);
 
   const signOut = async () => {
     await callAdmin("logout", {});
@@ -149,7 +221,9 @@ export default function Dashboard({ onSignedOut }) {
 
       {data ? (
         <>
-          <Section title="Payments">
+          <NavBar activeId={activeId} />
+
+          <Section id="payments" title="Payments">
             <StatRow>
               <StatCard label="Revenue (all time)" value={zar(data.payments.totalRevenueZAR)} accent={C.ok} />
               <StatCard label="Revenue (30d)" value={zar(data.payments.revenue30dZAR)} />
@@ -173,7 +247,7 @@ export default function Dashboard({ onSignedOut }) {
             />
           </Section>
 
-          <Section title="Pipeline & Leads">
+          <Section id="pipeline" title="Pipeline & Leads">
             <StatRow>
               <StatCard label="Total deals" value={data.pipeline.totalDeals} />
               <StatCard label="New leads (7d)" value={data.pipeline.newLeads7d} accent={C.blueLight} />
@@ -200,7 +274,7 @@ export default function Dashboard({ onSignedOut }) {
             />
           </Section>
 
-          <Section title="Call Activity">
+          <Section id="calls" title="Call Activity">
             <StatRow>
               <StatCard label="Total calls" value={data.calls.totalCalls} />
               <StatCard label="Total minutes" value={data.calls.totalMinutes} />
@@ -222,7 +296,7 @@ export default function Dashboard({ onSignedOut }) {
             />
           </Section>
 
-          <Section title="Business Health">
+          <Section id="health" title="Business Health">
             <StatRow>
               <StatCard label="MRR" value={zar(data.accounts.mrrZAR)} accent={C.ok} />
               <StatCard label="At-risk accounts" value={data.accounts.atRisk.length} accent={data.accounts.atRisk.length > 0 ? C.danger : undefined} />
@@ -257,7 +331,7 @@ export default function Dashboard({ onSignedOut }) {
             </div>
           </Section>
 
-          <Section title="Lead Sources">
+          <Section id="leads" title="Lead Sources">
             <StatRow>
               <StatCard label="Total contacts" value={data.leadSources.totalContacts} />
               <StatCard label="New (7d)" value={data.leadSources.new7d} accent={C.blueLight} />
@@ -276,7 +350,7 @@ export default function Dashboard({ onSignedOut }) {
             </div>
           </Section>
 
-          <Section title="Costs">
+          <Section id="costs" title="Costs">
             <StatRow>
               <StatCard label="This month" value={zar(data.expenses.thisMonthZAR)} />
               <StatCard label="Last month" value={zar(data.expenses.lastMonthZAR)} />
