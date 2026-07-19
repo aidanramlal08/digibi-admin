@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Shell, Spinner } from "./ui.jsx";
 import { callAdmin } from "./api.js";
 import Login from "./Login.jsx";
-import Dashboard from "./Dashboard.jsx";
+import Console from "./Console.jsx";
 
 export default function App() {
   const [status, setStatus] = useState("loading"); // loading | in | out
@@ -18,7 +18,7 @@ export default function App() {
 
   let view;
   if (status === "loading") view = <Spinner />;
-  else if (status === "in") view = <Dashboard onSignedOut={() => setStatus("out")} />;
+  else if (status === "in") view = <Console onSignedOut={() => setStatus("out")} />;
   else view = <Login onAuthed={() => setStatus("in")} />;
 
   return <Shell>{view}</Shell>;

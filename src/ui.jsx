@@ -159,6 +159,18 @@ export function CenteredCard({ children }) {
   );
 }
 
+export function StatRow({ children }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 18 }}>
+      {children}
+    </div>
+  );
+}
+
+export function PageTitle({ children }) {
+  return <h1 style={{ fontFamily: C.display, fontSize: 24, fontWeight: 800, margin: "0 0 20px" }}>{children}</h1>;
+}
+
 export function Table({ columns, rows, empty }) {
   if (!rows || rows.length === 0) {
     return <div style={{ fontSize: 13, color: C.textFaint, padding: "18px 4px" }}>{empty || "Nothing here yet."}</div>;
