@@ -1,8 +1,12 @@
 import React from "react";
 import { C, zar } from "../tokens.js";
-import { StatCard, Pill, Table, StatRow, PageTitle } from "../ui.jsx";
+import { StatCard, Pill, Table, StatRow, PageTitle, TrendLine } from "../ui.jsx";
 
 export default function PaymentsPage({ data }) {
+  const trendPoints = (data.payments.revenueTrend || []).map((d) => ({
+    label: new Date(d.date).toLocaleDateString("en-ZA", { month: "short", day: "numeric" }),
+    value: d.amountZAR,
+  }));
   return (
     <div>
       <PageTitle>Payments</PageTitle>
@@ -12,6 +16,8 @@ export default function PaymentsPage({ data }) {
         <StatCard label="Successful charges" value={data.payments.successCount} />
         <StatCard label="Failed / abandoned" value={data.payments.failedCount} accent={data.payments.failedCount > 0 ? C.warn : undefined} />
       </StatRow>
+      <div style={{ marginBottom: 8, fontSize: 12.5, color: C.textDim, fontWeight: 600 }}>Revenue, last 30 days</div>
+      <TrendLine points={trendPoints} formatValue={zar} />
       <Table
         empty="No transactions yet."
         columns={[

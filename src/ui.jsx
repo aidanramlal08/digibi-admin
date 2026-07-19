@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { C } from "./tokens.js";
 
 export function Shell({ children }) {
@@ -169,6 +169,93 @@ export function StatRow({ children }) {
 
 export function PageTitle({ children }) {
   return <h1 style={{ fontFamily: C.display, fontSize: 24, fontWeight: 800, margin: "0 0 20px" }}>{children}</h1>;
+}
+
+// Dependency-free SVG trend line: single series, hairline baseline, area wash,
+// crosshair + tooltip on hover. See dataviz skill: line for trend-over-time,
+// text always in ink tokens (never the series color), direct label at the end.
+export function TrendLine({ points, height = 160, formatValue = (v) => v, color = C.blueLight }) {
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const width = 640;
+  const padding = { top: 16, right: 12, bottom: 24, left: 12 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+
+  if (!points || points.length === 0) {
+    return <div style={{ fontSize: 13, color: C.textFaint, padding: "18px 4px" }}>No data yet.</div>;
+  }
+
+  const values = points.map((p) => p.value);
+  const maxV = Math.max(...values, 0);
+  const minV = Math.min(...values, 0);
+  const range = maxV - minV || 1;
+
+  const x = (i) => padding.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const y = (v) => padding.top + innerH - ((v - minV) / range) * innerH;
+  const baselineY = y(0);
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.value)}`).join(" ");
+  const areaPath = `${linePath} L ${x(points.length - 1)} ${baselineY} L ${x(0)} ${baselineY} Z`;
+
+  const handleMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * width;
+    const rel = (px - padding.left) / innerW;
+    const idx = Math.round(rel * (points.length - 1));
+    setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)));
+  };
+
+  const last = points[points.length - 1];
+  const hovered = hoverIdx != null ? points[hoverIdx] : null;
+
+  return (
+    <div style={{ position: "relative", marginBottom: 18 }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: "100%", height, display: "block" }}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        <line x1={padding.left} y1={baselineY} x2={width - padding.right} y2={baselineY} stroke={C.line} strokeWidth={1} />
+        <path d={areaPath} fill={color} opacity={0.1} stroke="none" />
+        <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={x(points.length - 1)} cy={y(last.value)} r={4} fill={color} stroke={C.bgDeep} strokeWidth={2} />
+        {hovered ? (
+          <>
+            <line x1={x(hoverIdx)} y1={padding.top} x2={x(hoverIdx)} y2={padding.top + innerH} stroke={C.lineStrong} strokeWidth={1} />
+            <circle cx={x(hoverIdx)} cy={y(hovered.value)} r={4} fill={color} stroke={C.bgDeep} strokeWidth={2} />
+          </>
+        ) : null}
+        <text x={x(points.length - 1)} y={y(last.value) - 10} textAnchor="end" fontSize={11} fontWeight={700} fill={C.text}>
+          {formatValue(last.value)}
+        </text>
+      </svg>
+      {hovered ? (
+        <div
+          style={{
+            position: "absolute",
+            left: `${(x(hoverIdx) / width) * 100}%`,
+            top: 0,
+            transform: hoverIdx > points.length / 2 ? "translate(-100%, 0)" : "translate(0, 0)",
+            background: C.surfaceHi,
+            border: `1px solid ${C.lineStrong}`,
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontSize: 12,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ color: C.text, fontWeight: 700 }}>{formatValue(hovered.value)}</div>
+          <div style={{ color: C.textFaint, fontSize: 11 }}>{hovered.label}</div>
+        </div>
+      ) : null}
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textFaint, marginTop: 4 }}>
+        <span>{points[0].label}</span>
+        <span>{last.label}</span>
+      </div>
+    </div>
+  );
 }
 
 export function Table({ columns, rows, empty }) {
