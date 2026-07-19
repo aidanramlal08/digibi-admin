@@ -124,5 +124,39 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (action === "add-expense") {
+    if (!JWT_SECRET || !PROXY_SECRET || !N8N_ADMIN_WEBHOOK_URL) {
+      res.status(503).json({ error: "Admin backend not configured" });
+      return;
+    }
+    const session = verifyJwt(readCookie(req, COOKIE_NAME));
+    if (!session || !session.admin) {
+      res.status(401).json({ ok: false, error: "Not signed in." });
+      return;
+    }
+    try {
+      const upstream = await fetch(N8N_ADMIN_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-proxy-secret": PROXY_SECRET },
+        body: JSON.stringify({
+          action: "add-expense",
+          date: (req.body && req.body.date) || "",
+          category: (req.body && req.body.category) || "",
+          description: (req.body && req.body.description) || "",
+          amount_cents: (req.body && req.body.amount_cents) || 0,
+        }),
+      });
+      const payload = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) {
+        res.status(200).json({ ok: false, error: payload.error || "Upstream error." });
+        return;
+      }
+      res.status(200).json({ ok: true });
+    } catch {
+      res.status(502).json({ ok: false, error: "Upstream unreachable." });
+    }
+    return;
+  }
+
   res.status(400).json({ error: "Unknown action" });
 }
