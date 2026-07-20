@@ -33,7 +33,7 @@ export default function Sidebar({ path, go, refreshing, onRefresh, onSignOut }) 
         return (
           <a
             key={p.path}
-            href={p.path}
+            href={import.meta.env.BASE_URL.replace(/\/$/, "") + p.path}
             onClick={(e) => {
               e.preventDefault();
               go(p.path);

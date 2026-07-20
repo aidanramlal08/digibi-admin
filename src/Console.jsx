@@ -20,15 +20,27 @@ const PAGE_COMPONENTS = {
   "/emails": EmailsPage,
 };
 
+// BASE is the deploy path prefix (e.g. "/admin"), set via vite.config.js's
+// `base` option and reflected in import.meta.env.BASE_URL at build time.
+// Route state below is always the app-relative path (no prefix); BASE is
+// added only when touching the real browser URL.
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function stripBase(pathname) {
+  if (BASE && pathname.startsWith(BASE)) return pathname.slice(BASE.length) || "/";
+  return pathname || "/";
+}
+
 function useRoute() {
-  const [path, setPath] = useState(() => window.location.pathname || "/");
+  const [path, setPath] = useState(() => stripBase(window.location.pathname));
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname || "/");
+    const onPop = () => setPath(stripBase(window.location.pathname));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   const go = useCallback((to) => {
-    if (to !== window.location.pathname) window.history.pushState({}, "", to);
+    const full = BASE + to;
+    if (full !== window.location.pathname) window.history.pushState({}, "", full);
     setPath(to);
   }, []);
   return { path, go };

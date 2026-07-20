@@ -2,7 +2,7 @@
 // JWT lives in an httpOnly cookie the browser sends automatically; page JS never
 // sees it.
 export async function callAdmin(action, body) {
-  const res = await fetch("/api/admin", {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/admin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...(body || {}) }),
