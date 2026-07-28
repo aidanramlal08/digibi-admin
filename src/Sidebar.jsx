@@ -2,59 +2,105 @@ import React from "react";
 import { C } from "./tokens.js";
 import { Button } from "./ui.jsx";
 
-export const PAGES = [
-  { path: "/payments", label: "Payments" },
-  { path: "/pipeline", label: "Pipeline & Leads" },
-  { path: "/calls", label: "Call Activity" },
-  { path: "/health", label: "Business Health" },
-  { path: "/leads", label: "Lead Sources" },
-  { path: "/costs", label: "Costs" },
-  { path: "/emails", label: "Emails" },
+export const NAV_GROUPS = [
+  { group: null, items: [{ path: "/overview", label: "Overview" }] },
+  {
+    group: "Revenue",
+    items: [
+      { path: "/payments", label: "Payments" },
+      { path: "/forecast", label: "Forecast" },
+      { path: "/costs", label: "Costs" },
+    ],
+  },
+  {
+    group: "Growth",
+    items: [
+      { path: "/pipeline", label: "Pipeline" },
+      { path: "/leads", label: "Lead Sources" },
+      { path: "/calls", label: "Call Activity" },
+    ],
+  },
+  {
+    group: "Retention",
+    items: [
+      { path: "/accounts", label: "Accounts" },
+      { path: "/churn", label: "Churn" },
+      { path: "/emails", label: "Emails" },
+    ],
+  },
+  { group: "Team", items: [{ path: "/tasks", label: "Tasks", badge: (data) => data.tasks?.overdueCount }] },
 ];
 
-export default function Sidebar({ path, go, refreshing, onRefresh, onSignOut }) {
+export const PAGES = NAV_GROUPS.flatMap((g) => g.items);
+
+export default function Sidebar({ path, go, refreshing, onRefresh, onSignOut, data }) {
   return (
     <div
+      className="app-sidebar"
       style={{
-        width: 220,
+        width: 228,
         flexShrink: 0,
+        padding: "28px 16px 40px",
+        position: "sticky",
+        top: 0,
+        height: "100vh",
+        overflowY: "auto",
         borderRight: `1px solid ${C.line}`,
         display: "flex",
         flexDirection: "column",
-        padding: "24px 14px",
-        gap: 4,
       }}
     >
-      <div style={{ fontFamily: C.display, fontSize: 19, fontWeight: 800, padding: "0 10px", marginBottom: 22 }}>
-        Digi<span style={{ color: C.blueLight }}>Bi</span>
+      <div style={{ fontFamily: C.display, fontSize: 19, fontWeight: 800, padding: "0 8px", marginBottom: 6, letterSpacing: "-0.01em" }}>
+        Digi<span style={{ color: C.accent }}>Bi</span>
       </div>
-      {PAGES.map((p) => {
-        const active = path === p.path;
-        return (
-          <a
-            key={p.path}
-            href={import.meta.env.BASE_URL.replace(/\/$/, "") + p.path}
-            onClick={(e) => {
-              e.preventDefault();
-              go(p.path);
-            }}
-            style={{
-              display: "block",
-              padding: "10px 12px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              textDecoration: "none",
-              color: active ? "#fff" : C.textDim,
-              background: active ? `linear-gradient(180deg, ${C.blue}, ${C.blueDeep})` : "transparent",
-            }}
-          >
-            {p.label}
-          </a>
-        );
-      })}
+      <div style={{ fontSize: 10.5, color: C.inkFaint, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 8px", marginBottom: 26, fontWeight: 600 }}>
+        Owner Dashboard
+      </div>
+
+      {NAV_GROUPS.map((g, gi) => (
+        <div key={gi} style={{ marginBottom: 20 }}>
+          {g.group ? (
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint, fontWeight: 700, padding: "0 8px", marginBottom: 6 }}>
+              {g.group}
+            </div>
+          ) : null}
+          {g.items.map((p) => {
+            const active = path === p.path;
+            const badge = p.badge ? p.badge(data || {}) : null;
+            return (
+              <a
+                key={p.path}
+                href={import.meta.env.BASE_URL.replace(/\/$/, "") + p.path}
+                onClick={(e) => {
+                  e.preventDefault();
+                  go(p.path);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "8px 8px",
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  fontWeight: active ? 700 : 600,
+                  textDecoration: "none",
+                  color: active ? C.accentDeep : C.inkDim,
+                  background: active ? C.accentWash : "transparent",
+                }}
+              >
+                <span>{p.label}</span>
+                {badge ? (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.danger, background: C.dangerWash, borderRadius: 20, padding: "1px 7px" }}>{badge}</span>
+                ) : null}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+
       <div style={{ flex: 1 }} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 2px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 8px" }}>
         <Button variant="subtle" onClick={onRefresh} disabled={refreshing} style={{ width: "100%" }}>
           {refreshing ? "Refreshing…" : "Refresh"}
         </Button>
