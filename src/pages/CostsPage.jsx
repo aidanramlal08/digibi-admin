@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { C, zar } from "../tokens.js";
 import { callAdmin } from "../api.js";
-import { StatCard, Pill, Table, StatRow, PageTitle, Field, Button, Notice } from "../ui.jsx";
+import { StatCard, StatRow, Eyebrow, PageTitle, PageDek, PillRow, Pill, DataTable, Field, Button, Notice, Rule, SectionTitle, TrendLine } from "../ui.jsx";
 import { EXPENSE_CATEGORIES } from "../lib.js";
 
 function ExpenseForm({ onAdded }) {
@@ -34,18 +34,18 @@ function ExpenseForm({ onAdded }) {
   };
 
   return (
-    <form onSubmit={submit} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
+    <form onSubmit={submit} style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: "16px 18px", marginBottom: 20 }}>
       <Notice kind="error">{error}</Notice>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, alignItems: "end" }}>
         <Field label="Date" type="date" value={date} onChange={setDate} />
         <div>
-          <label style={{ display: "block", fontSize: 12.5, color: C.textDim, marginBottom: 7, fontWeight: 600 }}>Category</label>
+          <label style={{ display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, marginBottom: 6, fontWeight: 700 }}>Category</label>
           <input
             list="expense-categories"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="Software"
-            style={{ width: "100%", padding: "12px 14px", borderRadius: 11, fontSize: 15, background: C.bgDeep, border: `1px solid ${C.lineStrong}`, color: C.text, fontFamily: C.body, outline: "none" }}
+            style={{ width: "100%", padding: "9px 11px", borderRadius: 8, fontSize: 14, background: C.paper, border: `1px solid ${C.lineStrong}`, color: C.ink, fontFamily: C.body, outline: "none" }}
           />
           <datalist id="expense-categories">
             {EXPENSE_CATEGORIES.map((c) => (
@@ -64,28 +64,59 @@ function ExpenseForm({ onAdded }) {
 }
 
 export default function CostsPage({ data, onRefresh }) {
+  const f = data.financials;
+  const netPositive = f.netThisMonthZAR != null && f.netThisMonthZAR >= 0;
   return (
     <div>
-      <PageTitle>Costs</PageTitle>
+      <Eyebrow>Revenue</Eyebrow>
+      <PageTitle>Costs &amp; Cash</PageTitle>
+      <PageDek>Money out, net position, and runway.</PageDek>
+
+      <SectionTitle>Cash position</SectionTitle>
+      <StatRow>
+        <StatCard
+          label="Net this month"
+          value={f.netThisMonthZAR != null ? zar(f.netThisMonthZAR) : "—"}
+          hint="revenue − costs"
+          accent={f.netThisMonthZAR == null ? undefined : netPositive ? C.ok : C.danger}
+        />
+        <StatCard label="Cash on hand" value={f.cashOnHandZAR != null ? zar(f.cashOnHandZAR) : "—"} />
+        <StatCard
+          label={netPositive ? "Monthly surplus" : "Monthly burn"}
+          value={f.monthlyBurnZAR != null ? zar(Math.abs(f.monthlyBurnZAR)) : netPositive ? zar(f.netThisMonthZAR) : "—"}
+        />
+        <StatCard label="Runway" value={netPositive ? "Profitable" : f.runwayMonths != null ? f.runwayMonths + " mo" : "—"} accent={netPositive ? C.ok : f.runwayMonths != null && f.runwayMonths < 6 ? C.danger : undefined} />
+      </StatRow>
+      {f.netTrend && f.netTrend.length > 0 ? (
+        <>
+          <div style={{ fontSize: 12.5, color: C.inkDim, fontWeight: 600, marginBottom: 8 }}>Net profit, trailing months</div>
+          <TrendLine points={f.netTrend.map((m) => ({ label: m.month, value: m.valueZAR }))} formatValue={zar} />
+        </>
+      ) : null}
+
+      <Rule />
+      <SectionTitle>Operating expenses</SectionTitle>
       <StatRow>
         <StatCard label="This month" value={zar(data.expenses.thisMonthZAR)} />
         <StatCard label="Last month" value={zar(data.expenses.lastMonthZAR)} />
       </StatRow>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+      <PillRow>
         {data.expenses.categories.map((c) => (
           <Pill key={c.category} tone="neutral">
             {c.category}: {zar(c.amountZAR)}
           </Pill>
         ))}
-      </div>
+      </PillRow>
       <ExpenseForm onAdded={onRefresh} />
-      <Table
+      <DataTable
         empty="No expenses logged yet."
+        searchKeys={["category", "description"]}
+        exportName="expenses"
         columns={[
-          { key: "date", label: "Date", render: (r) => (r.date ? new Date(r.date).toLocaleDateString("en-ZA") : "—") },
+          { key: "date", label: "Date", render: (r) => (r.date ? new Date(r.date).toLocaleDateString("en-ZA") : "—"), csv: (r) => r.date },
           { key: "category", label: "Category" },
           { key: "description", label: "Description" },
-          { key: "amountZAR", label: "Amount", render: (r) => zar(r.amountZAR) },
+          { key: "amountZAR", label: "Amount", num: true, render: (r) => zar(r.amountZAR), csv: (r) => r.amountZAR },
         ]}
         rows={data.expenses.recent}
       />

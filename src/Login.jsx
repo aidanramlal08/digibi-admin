@@ -21,7 +21,7 @@ export default function Login({ onAuthed }) {
   return (
     <CenteredCard>
       <h1 style={{ fontFamily: C.display, fontSize: 22, marginBottom: 6 }}>Sign in</h1>
-      <p style={{ fontSize: 13.5, color: C.textDim, marginBottom: 22 }}>Internal use only.</p>
+      <p style={{ fontSize: 13.5, color: C.inkDim, marginBottom: 22 }}>Internal use only.</p>
       <Notice kind="error">{error}</Notice>
       <form onSubmit={submit}>
         <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" placeholder="••••••••" />

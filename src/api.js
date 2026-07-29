@@ -15,3 +15,32 @@ export async function callAdmin(action, body) {
   }
   return { ok: res.ok, status: res.status, data };
 }
+
+// Owner Assistant chat. `messages` is the running [{role, content}] history;
+// `data` is the current dashboard snapshot the agent answers from.
+export async function askAssistant(messages, data) {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/assistant`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, data }),
+  });
+  let out = {};
+  try {
+    out = await res.json();
+  } catch {
+    /* non-JSON error body */
+  }
+  return { ok: res.ok, status: res.status, data: out };
+}
+
+// On-demand daily brief (the same endpoint Vercel Cron calls each morning).
+export async function getBrief() {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/brief`, { method: "GET" });
+  let out = {};
+  try {
+    out = await res.json();
+  } catch {
+    /* non-JSON error body */
+  }
+  return { ok: res.ok, status: res.status, data: out };
+}
