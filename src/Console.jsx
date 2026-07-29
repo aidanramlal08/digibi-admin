@@ -3,6 +3,7 @@ import { Spinner } from "./ui.jsx";
 import { callAdmin } from "./api.js";
 import Sidebar, { PAGES } from "./Sidebar.jsx";
 import OverviewPage from "./pages/OverviewPage.jsx";
+import AssistantPage from "./pages/AssistantPage.jsx";
 import PaymentsPage from "./pages/PaymentsPage.jsx";
 import ForecastPage from "./pages/ForecastPage.jsx";
 import ProfitabilityPage from "./pages/ProfitabilityPage.jsx";
@@ -18,6 +19,7 @@ import SystemHealthPage from "./pages/SystemHealthPage.jsx";
 
 const PAGE_COMPONENTS = {
   "/overview": OverviewPage,
+  "/assistant": AssistantPage,
   "/payments": PaymentsPage,
   "/forecast": ForecastPage,
   "/profitability": ProfitabilityPage,

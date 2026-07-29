@@ -3,7 +3,7 @@ import { C } from "./tokens.js";
 import { Button } from "./ui.jsx";
 
 export const NAV_GROUPS = [
-  { group: null, items: [{ path: "/overview", label: "Overview" }] },
+  { group: null, items: [{ path: "/overview", label: "Overview" }, { path: "/assistant", label: "Assistant" }] },
   {
     group: "Revenue",
     items: [
