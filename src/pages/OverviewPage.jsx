@@ -12,8 +12,17 @@ export default function OverviewPage({ data, go }) {
 
   const attn = useMemo(() => {
     const items = [];
+    for (const i of (data.systemHealth.issues || []).filter((i) => i.severity === "high")) {
+      items.push({ tone: "high", title: `${i.kind} — ${i.workflow}`, meta: i.detail });
+    }
     for (const a of data.accounts.atRisk) {
       items.push({ tone: "high", title: `${a.dealname} — payment ${a.daysOverdue}d overdue`, meta: a.dunningCallMade ? "Dunning call made" : "No dunning call yet" });
+    }
+    for (const c of (data.profitability.clients || []).filter((c) => c.marginPct != null && c.marginPct < 0)) {
+      items.push({ tone: "high", title: `${c.client} is unprofitable`, meta: `${c.marginPct}% margin — serving cost above revenue` });
+    }
+    for (const g of (data.accounts.goingQuiet || []).filter((g) => g.dropPct >= 60)) {
+      items.push({ tone: "med", title: `${g.dealname} going quiet`, meta: `Calls down ${g.dropPct}% · last call ${g.lastCallDaysAgo}d ago` });
     }
     for (const t of data.tasks.recent.filter((t) => t.status === "overdue")) {
       items.push({ tone: "high", title: t.title, meta: `Overdue — was due ${t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-ZA") : "—"} · ${t.relatedTo}` });
@@ -26,6 +35,8 @@ export default function OverviewPage({ data, go }) {
     }
     return items;
   }, [data]);
+
+  const netPositive = data.financials.netThisMonthZAR != null && data.financials.netThisMonthZAR >= 0;
 
   const trendPoints = (data.payments.revenueTrend || [])
     .filter((p) => withinDays(p.date, range))
@@ -41,8 +52,14 @@ export default function OverviewPage({ data, go }) {
       </PageDek>
       <StatRow>
         <StatCard label="MRR" value={zar(data.accounts.mrrZAR)} accent={C.ok} />
+        <StatCard
+          label="Net this month"
+          value={data.financials.netThisMonthZAR != null ? zar(data.financials.netThisMonthZAR) : "—"}
+          hint={netPositive ? "profitable" : "burning"}
+          accent={data.financials.netThisMonthZAR == null ? undefined : netPositive ? C.ok : C.danger}
+        />
+        <StatCard label="Gross margin" value={data.profitability.grossMarginPct != null ? data.profitability.grossMarginPct + "%" : "—"} hint={`${data.profitability.unprofitableCount} unprofitable`} accent={data.profitability.unprofitableCount > 0 ? C.warn : undefined} />
         <StatCard label="Weighted forecast" value={zar(data.forecast.weightedForecastZAR)} hint="next 90 days" />
-        <StatCard label="Open pipeline" value={zar(data.forecast.pipelineValueZAR)} hint={`${data.pipeline.totalDeals} deals`} />
         <StatCard
           label="Churned MRR (30d)"
           value={zar(data.churn.mrrLostZAR)}

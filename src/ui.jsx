@@ -353,6 +353,25 @@ export function AttentionList({ items }) {
   );
 }
 
+// Horizontal distribution bars for a small set of labelled counts (e.g. QA
+// score 1–5). Bar length is share of the max; count sits at the end.
+export function DistributionBars({ items, colorFor }) {
+  const max = Math.max(...items.map((i) => i.count), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+      {items.map((it) => (
+        <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 64, fontSize: 12, color: C.inkDim, fontWeight: 600, flexShrink: 0 }}>{it.label}</div>
+          <div style={{ flex: 1, background: C.sunken, borderRadius: 6, height: 22, position: "relative", overflow: "hidden" }}>
+            <div style={{ width: `${(it.count / max) * 100}%`, height: "100%", background: colorFor ? colorFor(it) : C.accent, borderRadius: 6, minWidth: it.count > 0 ? 2 : 0 }} />
+          </div>
+          <div style={{ width: 40, textAlign: "right", fontSize: 12.5, color: C.ink, fontWeight: 700, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{it.count}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Dependency-free SVG trend line: single series, hairline baseline, area wash,
 // crosshair + tooltip on hover.
 export function TrendLine({ points, height = 170, formatValue = (v) => v }) {

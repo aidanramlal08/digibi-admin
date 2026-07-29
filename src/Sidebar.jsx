@@ -9,6 +9,7 @@ export const NAV_GROUPS = [
     items: [
       { path: "/payments", label: "Payments" },
       { path: "/forecast", label: "Forecast" },
+      { path: "/profitability", label: "Profitability" },
       { path: "/costs", label: "Costs" },
     ],
   },
@@ -28,7 +29,13 @@ export const NAV_GROUPS = [
       { path: "/emails", label: "Emails" },
     ],
   },
-  { group: "Team", items: [{ path: "/tasks", label: "Tasks", badge: (data) => data.tasks?.overdueCount }] },
+  {
+    group: "Operations",
+    items: [
+      { path: "/system", label: "System Health", badge: (data) => data.systemHealth?.issues?.filter((i) => i.severity === "high").length || null },
+      { path: "/tasks", label: "Tasks", badge: (data) => data.tasks?.overdueCount },
+    ],
+  },
 ];
 
 export const PAGES = NAV_GROUPS.flatMap((g) => g.items);

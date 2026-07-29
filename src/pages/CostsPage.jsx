@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { C, zar } from "../tokens.js";
 import { callAdmin } from "../api.js";
-import { StatCard, StatRow, Eyebrow, PageTitle, PageDek, PillRow, Pill, DataTable, Field, Button, Notice } from "../ui.jsx";
+import { StatCard, StatRow, Eyebrow, PageTitle, PageDek, PillRow, Pill, DataTable, Field, Button, Notice, Rule, SectionTitle, TrendLine } from "../ui.jsx";
 import { EXPENSE_CATEGORIES } from "../lib.js";
 
 function ExpenseForm({ onAdded }) {
@@ -64,11 +64,38 @@ function ExpenseForm({ onAdded }) {
 }
 
 export default function CostsPage({ data, onRefresh }) {
+  const f = data.financials;
+  const netPositive = f.netThisMonthZAR != null && f.netThisMonthZAR >= 0;
   return (
     <div>
       <Eyebrow>Revenue</Eyebrow>
-      <PageTitle>Costs</PageTitle>
-      <PageDek>Manually logged operating expenses.</PageDek>
+      <PageTitle>Costs &amp; Cash</PageTitle>
+      <PageDek>Money out, net position, and runway.</PageDek>
+
+      <SectionTitle>Cash position</SectionTitle>
+      <StatRow>
+        <StatCard
+          label="Net this month"
+          value={f.netThisMonthZAR != null ? zar(f.netThisMonthZAR) : "—"}
+          hint="revenue − costs"
+          accent={f.netThisMonthZAR == null ? undefined : netPositive ? C.ok : C.danger}
+        />
+        <StatCard label="Cash on hand" value={f.cashOnHandZAR != null ? zar(f.cashOnHandZAR) : "—"} />
+        <StatCard
+          label={netPositive ? "Monthly surplus" : "Monthly burn"}
+          value={f.monthlyBurnZAR != null ? zar(Math.abs(f.monthlyBurnZAR)) : netPositive ? zar(f.netThisMonthZAR) : "—"}
+        />
+        <StatCard label="Runway" value={netPositive ? "Profitable" : f.runwayMonths != null ? f.runwayMonths + " mo" : "—"} accent={netPositive ? C.ok : f.runwayMonths != null && f.runwayMonths < 6 ? C.danger : undefined} />
+      </StatRow>
+      {f.netTrend && f.netTrend.length > 0 ? (
+        <>
+          <div style={{ fontSize: 12.5, color: C.inkDim, fontWeight: 600, marginBottom: 8 }}>Net profit, trailing months</div>
+          <TrendLine points={f.netTrend.map((m) => ({ label: m.month, value: m.valueZAR }))} formatValue={zar} />
+        </>
+      ) : null}
+
+      <Rule />
+      <SectionTitle>Operating expenses</SectionTitle>
       <StatRow>
         <StatCard label="This month" value={zar(data.expenses.thisMonthZAR)} />
         <StatCard label="Last month" value={zar(data.expenses.lastMonthZAR)} />

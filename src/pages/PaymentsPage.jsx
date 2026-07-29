@@ -24,6 +24,8 @@ export default function PaymentsPage({ data }) {
       <StatRow>
         <StatCard label="Revenue (all time)" value={zar(data.payments.totalRevenueZAR)} accent={C.ok} />
         <StatCard label={`Revenue (${range}d)`} value={zar(rangeRevenue)} />
+        <StatCard label="Recurring (30d)" value={data.payments.recurring30dZAR != null ? zar(data.payments.recurring30dZAR) : "—"} hint="subscriptions" />
+        <StatCard label="Overage (30d)" value={data.payments.overage30dZAR != null ? zar(data.payments.overage30dZAR) : "—"} hint="metered voice minutes" accent={C.accent} />
         <StatCard label="Successful charges" value={data.payments.successCount} />
         <StatCard label="Failed / abandoned" value={data.payments.failedCount} accent={data.payments.failedCount > 0 ? C.warn : undefined} />
       </StatRow>
