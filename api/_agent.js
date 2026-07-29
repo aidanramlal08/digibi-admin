@@ -1,20 +1,19 @@
 // Owner Assistant agent core, shared by the chat and daily-brief endpoints.
-// Runs Claude with a live HubSpot CRM tool, grounded on the dashboard snapshot
-// the caller passes in. Underscore prefix keeps Vercel from routing this file.
-import Anthropic from "@anthropic-ai/sdk";
+// Runs Google Gemini (REST API, no SDK) with a live HubSpot CRM function tool,
+// grounded on the dashboard snapshot the caller passes in. Underscore prefix
+// keeps Vercel from routing this file.
 
-// Model is configurable via env so you can switch tiers (e.g. claude-sonnet-5)
-// without a code change. Defaults to the strongest reasoning model.
-const MODEL = process.env.ASSISTANT_MODEL || "claude-opus-5";
+// Model is configurable via env so you can switch tiers without a code change.
+const MODEL = process.env.ASSISTANT_MODEL || "gemini-2.0-flash";
 const MAX_TOOL_ROUNDS = 6;
 
 // Live CRM lookup so the agent can drill past the aggregated dashboard snapshot
 // into specific deals, contacts, or companies. Uses a HubSpot private-app token.
-const HUBSPOT_TOOL = {
+const HUBSPOT_FUNCTION = {
   name: "hubspot_crm_search",
   description:
     "Search the live HubSpot CRM for deals, contacts, or companies. Use this when the question needs current, record-level detail that isn't in the dashboard snapshot — e.g. a specific customer's deals, a contact's recent activity, or an exact stage/amount. Returns the matching records and their properties.",
-  input_schema: {
+  parameters: {
     type: "object",
     properties: {
       object_type: { type: "string", enum: ["deals", "contacts", "companies"], description: "Which CRM object to search." },
@@ -68,58 +67,69 @@ function buildSystem(dashboardData, brief) {
   return lines.join("\n");
 }
 
-function coerceMessages(messages) {
+// Map our [{role:"user"|"assistant", content}] history to Gemini's contents.
+function toContents(messages) {
   return (messages || [])
     .filter((m) => m && (m.role === "user" || m.role === "assistant"))
-    .map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : String(m.content ?? "") }))
+    .map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: typeof m.content === "string" ? m.content : String(m.content ?? "") }],
+    }))
     .slice(-20);
 }
 
-// Runs the tool loop to completion and returns { ok, answer }.
+async function callGemini(apiKey, body) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Gemini ${res.status}: ${detail.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+// Runs the function-calling loop to completion and returns { ok, answer }.
 export async function runAgent({ messages, dashboardData, brief }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { ok: false, error: "Assistant not configured (missing ANTHROPIC_API_KEY)." };
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) return { ok: false, error: "Assistant not configured (missing GEMINI_API_KEY)." };
 
   const hubspotToken = process.env.HUBSPOT_TOKEN || "";
-  const client = new Anthropic({ apiKey });
-  const tools = hubspotToken ? [HUBSPOT_TOOL] : [];
-  const system = buildSystem(dashboardData, brief);
+  const systemInstruction = { parts: [{ text: buildSystem(dashboardData, brief) }] };
+  const tools = hubspotToken ? [{ functionDeclarations: [HUBSPOT_FUNCTION] }] : [];
 
-  const convo = brief ? [{ role: "user", content: "Write today's owner brief." }] : coerceMessages(messages);
-  if (convo.length === 0) return { ok: false, error: "No message to answer." };
+  const contents = brief ? [{ role: "user", parts: [{ text: "Write today's owner brief." }] }] : toContents(messages);
+  if (contents.length === 0) return { ok: false, error: "No message to answer." };
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const resp = await client.messages.create({
-        model: MODEL,
-        max_tokens: 16000,
-        system,
-        tools,
-        output_config: { effort: "medium" },
-        messages: convo,
-      });
+      const data = await callGemini(apiKey, { systemInstruction, contents, tools, generationConfig: { temperature: 0.3 } });
+      const candidate = (data.candidates || [])[0];
+      if (!candidate || !candidate.content) {
+        // Blocked by a safety filter or empty response.
+        return { ok: true, answer: "I can't help with that one — try rephrasing." };
+      }
+      const parts = candidate.content.parts || [];
+      const calls = parts.filter((p) => p.functionCall);
 
-      if (resp.stop_reason === "tool_use") {
-        convo.push({ role: "assistant", content: resp.content });
-        const results = [];
-        for (const block of resp.content) {
-          if (block.type === "tool_use" && block.name === "hubspot_crm_search") {
-            const out = hubspotToken ? await hubspotSearch(block.input, hubspotToken) : { error: "HubSpot not connected." };
-            results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(out) });
-          }
+      if (calls.length > 0) {
+        contents.push(candidate.content); // model turn carrying the function call(s)
+        const responseParts = [];
+        for (const p of calls) {
+          const { name, args } = p.functionCall;
+          const out = name === "hubspot_crm_search" && hubspotToken ? await hubspotSearch(args || {}, hubspotToken) : { error: "Tool unavailable." };
+          responseParts.push({ functionResponse: { name, response: out } });
         }
-        convo.push({ role: "user", content: results });
+        contents.push({ role: "user", parts: responseParts });
         continue;
       }
 
-      if (resp.stop_reason === "refusal") {
-        return { ok: true, answer: "I can't help with that one — try rephrasing." };
-      }
-
-      const answer = resp.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n")
+      const answer = parts
+        .filter((p) => typeof p.text === "string")
+        .map((p) => p.text)
+        .join("")
         .trim();
       return { ok: true, answer: answer || "(No answer generated.)" };
     }

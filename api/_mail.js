@@ -41,16 +41,21 @@ function briefToHtml(text) {
 // unconfigured, or { error } on failure — never throws.
 export async function sendBriefEmail(brief) {
   const apiKey = process.env.RESEND_API_KEY || "";
-  const to = process.env.OWNER_EMAIL || "";
+  // Defaults to hello@digi-bi.com; OWNER_EMAIL can override with one or more
+  // comma-separated addresses.
+  const to = (process.env.OWNER_EMAIL || "hello@digi-bi.com")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const from = process.env.BRIEF_FROM || "DigiBi <onboarding@resend.dev>";
-  if (!apiKey || !to) return { skipped: true, reason: "email not configured (need RESEND_API_KEY and OWNER_EMAIL)" };
+  if (!apiKey || to.length === 0) return { skipped: true, reason: "email not configured (need RESEND_API_KEY)" };
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from,
-        to: [to],
+        to,
         subject: `DigiBi daily brief — ${new Date().toLocaleDateString("en-ZA")}`,
         html: briefToHtml(brief),
       }),
