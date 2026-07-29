@@ -3,7 +3,9 @@
 // the caller passes in. Underscore prefix keeps Vercel from routing this file.
 import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = "claude-opus-5";
+// Model is configurable via env so you can switch tiers (e.g. claude-sonnet-5)
+// without a code change. Defaults to the strongest reasoning model.
+const MODEL = process.env.ASSISTANT_MODEL || "claude-opus-5";
 const MAX_TOOL_ROUNDS = 6;
 
 // Live CRM lookup so the agent can drill past the aggregated dashboard snapshot
