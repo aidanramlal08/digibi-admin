@@ -1,0 +1,178 @@
+// Structure OS agent definitions — the six DigiBi agents that absorb the 22
+// n8n workflows into judgment layers. The AgentConsolePage renders these.
+// Streams and approvals are seeded here for now; they'll come from the same
+// n8n Owner Dashboard API once the agent-orchestration side is wired.
+
+export const AGENT_ACCENT = {
+  orchestrator: "#FB923C",
+  content:      "#A78BFA",
+  marketing:    "#F472B6",
+  sales:        "#3B82F6",
+  success:      "#10B981",
+  finance:      "#F59E0B",
+};
+
+export const AGENTS = [
+  {
+    id: "orchestrator",
+    name: "Chief of Staff",
+    role: "Orchestration",
+    status: "idle",
+    statusLabel: "Idle · next run 07:00",
+    tagline: "Turns your one goal into the day's plan, watches for anything that needs you.",
+    metricLabel: "Active goals",
+    metricValue: "1",
+    pipeline: [
+      { name: "Parse goal", desc: "Break \"20 demos in June\" into department objectives." },
+      { name: "Draft strategy", desc: "Route sub-goals to Sales · Marketing · Client Success · Finance." },
+      { name: "Human review", desc: "You approve or edit the plan before agents move.", gate: true },
+      { name: "Dispatch tasks", desc: "Push tasks to department agents; watch the event stream." },
+      { name: "Daily digest", desc: "Roll goal progress + pending approvals into 07:00 owner email." },
+    ],
+    absorbs: [
+      { name: "Daily Owner Digest", why: "One roll-up email replaces every department's own alerts." },
+      { name: "Monthly Owner Report", why: "MRR / active clients / pipeline health rollup." },
+    ],
+    tools: ["supabase.events (read all)", "hubspot.pipeline_snapshot", "digest_email(hello@digi-bi.com)"],
+  },
+  {
+    id: "content",
+    name: "Content",
+    role: "Video generation · social publishing",
+    status: "running",
+    statusLabel: "Rendering today's video",
+    tagline: "Ships a branded vertical video every day, picks the angle before it burns Higgsfield credits.",
+    metricLabel: "Videos this week",
+    metricValue: "5",
+    pipeline: [
+      { name: "Pick angle", desc: "Which trade / pain point / call scenario resonates today." },
+      { name: "Draft brief", desc: "Hook + shot list + caption + hashtag set for the whole cross-post." },
+      { name: "Human review", desc: "You approve the brief before Higgsfield renders (auto-skip when trusted).", gate: true },
+      { name: "Render", desc: "Higgsfield builds the vertical explainer, DigiBi-branded." },
+      { name: "Cross-post", desc: "One send → FB · IG · YouTube Shorts · TikTok with the caption." },
+    ],
+    absorbs: [
+      { name: "Daily Video Generator & Poster", why: "Agent chooses topic; existing publish nodes stay as-is." },
+    ],
+    tools: ["higgsfield.generate_video", "fb_graph.post_reel", "ig_graph.post_reel", "youtube.upload_short", "tiktok.publish"],
+  },
+  {
+    id: "marketing",
+    name: "Marketing · Ads",
+    role: "Meta ads · attribution · retargeting",
+    status: "pending",
+    statusLabel: "1 approval waiting",
+    tagline: "Reads the numbers, tells you what to change, and only spends on your say-so.",
+    metricLabel: "MTD spend",
+    metricValue: "R14,220",
+    pipeline: [
+      { name: "Pull insights", desc: "Meta campaign spend · impressions · clicks · leads for yesterday." },
+      { name: "Compute pacing", desc: "MTD spend vs monthly ZAR budget · projection to month-end." },
+      { name: "Diagnose", desc: "Flag spend-with-zero-leads campaigns; spot winners by CPL." },
+      { name: "Recommend", desc: "Draft budget moves — scale winners, pause losers." },
+      { name: "Human gate", desc: "You approve any budget move > ±20 % or an ad-set kill.", gate: true },
+      { name: "Apply", desc: "Push budget / status changes to Meta; sync retargeting audience." },
+      { name: "Attribution", desc: "Weekly: blend Meta spend with HubSpot deals, email the report." },
+    ],
+    absorbs: [
+      { name: "Ads Performance Digest", why: "Interpret yesterday's CTR / CPC / CPL and pacing." },
+      { name: "Lead Attribution Report", why: "Meta spend × HubSpot deals, weekly summary." },
+      { name: "Retargeting Audience Sync", why: "Choose which active-lead cohorts get synced." },
+    ],
+    tools: ["meta_graph.insights", "meta_graph.update_adset", "meta_graph.custom_audience", "hubspot.search_deals", "email_send"],
+  },
+  {
+    id: "sales",
+    name: "Sales",
+    role: "Intake · nurture · deal progression",
+    status: "running",
+    statusLabel: "Drafting nurture batch",
+    tagline: "Every DigiBi lead treated the same way, all day — from web-form to closed deal.",
+    metricLabel: "Leads in flight",
+    metricValue: "38",
+    pipeline: [
+      { name: "Ingest lead", desc: "Web form → HubSpot contact with digibi_lead_status." },
+      { name: "Classify intent", desc: "Sales-fit or FAQ? Dispatch the matching Retell agent." },
+      { name: "Find stale", desc: "Daily: leads > 3 days inactive, under 3-touch cap." },
+      { name: "Personalize", desc: "Reference pain-point + industry; vary angle by touch 1 / 2 / 3." },
+      { name: "Human gate", desc: "You approve every outbound before it sends.", gate: true },
+      { name: "Send & track", desc: "digibi_nurture_count++; flip to unresponsive at 3." },
+      { name: "Progress deals", desc: "Post-consult: move stage, draft proposal, gate the send." },
+    ],
+    absorbs: [
+      { name: "Web Lead Intake", why: "Classify + dispatch to the right Retell agent." },
+      { name: "Cold-Lead Nurture", why: "Personalized 3-touch, no more script-y drips." },
+      { name: "Post-Consultation Deal Progression", why: "Move stage; draft the proposal email." },
+      { name: "Call Retry Dispatcher", why: "When to redial an unreached call." },
+      { name: "Consultation Config Capture", why: "Form input → HubSpot deal task." },
+    ],
+    tools: ["hubspot.contacts_search", "hubspot.contacts_update", "retell.dispatch_call", "email_send(sales@digi-bi.com)", "whatsapp.send"],
+  },
+  {
+    id: "success",
+    name: "Client Success",
+    role: "Onboarding · QA · retention",
+    status: "running",
+    statusLabel: "Scoring live calls",
+    tagline: "Owns every client after payment lands — QA on every call, review asks, onboarding.",
+    metricLabel: "Calls scored today",
+    metricValue: "17",
+    pipeline: [
+      { name: "Ingest call", desc: "Retell webhook on every completed call." },
+      { name: "Score", desc: "1–5 · sentiment · resolved? · issues[] · one-line summary." },
+      { name: "Write back", desc: "digibi_last_call_score / sentiment / summary → HubSpot." },
+      { name: "Flag low", desc: "Score ≤ 2 → owner Slack ping with call_id + issues." },
+      { name: "Ask for review", desc: "Daily: happy clients (recent positive) → WhatsApp review + referral ask." },
+      { name: "Human gate", desc: "You approve any personalized message before send.", gate: true },
+      { name: "Onboard new", desc: "On close: checklist · portal user · set-password email." },
+    ],
+    absorbs: [
+      { name: "Call-QA Scorer", why: "Grade every Retell call; escalate poor calls." },
+      { name: "Reviews + Referrals", why: "Pick who to ask; write the personalized WhatsApp." },
+      { name: "Onboarding Kickoff", why: "Sequence the whole first-week checklist." },
+    ],
+    tools: ["hubspot.contacts_update", "slack.post_owner", "whatsapp.send", "portal.provision_user"],
+  },
+  {
+    id: "finance",
+    name: "Finance",
+    role: "Metered billing · dunning · provisioning",
+    status: "pending",
+    statusLabel: "1 dunning sequence waiting",
+    tagline: "Keeps ZAR moving; chases what doesn't, but not before you sign off on the escalation.",
+    metricLabel: "MRR",
+    metricValue: "R48,300",
+    pipeline: [
+      { name: "Daily meter", desc: "Per-client overage minutes → ZAR charges." },
+      { name: "Anomaly check", desc: "Missing rate cards · usage spikes · near-limit accounts." },
+      { name: "Charge or hold", desc: "Paystack charge on clean records; hold + alert on anomalies." },
+      { name: "Dunning", desc: "Failed payment > 7 days → queue Retell billing call." },
+      { name: "Human gate", desc: "You approve any dunning-call sequence before it dials.", gate: true },
+      { name: "Provision", desc: "On payment success: create Retell agent + number, flip HubSpot stage." },
+    ],
+    absorbs: [
+      { name: "Usage Reporting (Paystack)", why: "Interpret usage anomalies; flag missing rate cards." },
+      { name: "Dunning Check", why: "Decide how hard to push, when to escalate." },
+      { name: "Auto-Provisioning judgment", why: "Sanity-check payment → new Retell agent before executing." },
+    ],
+    tools: ["paystack.charge", "paystack.subscription", "retell.create_agent", "retell.buy_number", "hubspot.contacts_update"],
+  },
+];
+
+export const SEED_APPROVALS = [
+  { dept: "sales",     deptLabel: "Sales",     risk: "low",  ctx: "Cold-Lead Nurture · touch 2 of 3 · sarah@boltelectrical.co.za", rec: "Send warm nudge referencing your load-shedding assist case study — reply expected within 24h." },
+  { dept: "marketing", deptLabel: "Marketing", risk: "med",  ctx: "Meta campaign · \"Cape Town Solar\" variant B", rec: "Scale daily budget from R220 → R330 (+50%). CPL R38 last 3 days, well under R60 target." },
+  { dept: "finance",   deptLabel: "Finance",   risk: "high", ctx: "Client · Jones Plumbing · 9 days past due · R2,400", rec: "Dispatch Retell billing agent (soft-tone script) tomorrow 10:00 SAST — 3rd attempt." },
+  { dept: "success",   deptLabel: "Success",   risk: "low",  ctx: "Happy client · Cape Reef Property · last call scored 5/5", rec: "Send WhatsApp asking for a Google review + a referral name. Draft personalised, mentions their geyser callout." },
+];
+
+export const SEED_STREAM = [
+  { dept: "sales",        ts: "14:32", msg: "Nurture batch drafted · 3 emails · awaiting your review" },
+  { dept: "success",      ts: "14:28", msg: "Call scored 4/5 · Cape Reef Property · resolved: true · HubSpot updated" },
+  { dept: "finance",      ts: "14:25", msg: "Overage meter run · 4 clients charged · R1,240 total" },
+  { dept: "orchestrator", ts: "14:20", msg: "Task dispatched to Sales · \"Follow up June solar demos\"" },
+  { dept: "marketing",    ts: "14:17", msg: "Yesterday CPL R38 · flagged 2 winners for scale approval" },
+  { dept: "content",      ts: "14:12", msg: "Higgsfield render queued · brief approved · \"Missed call → job lost\"" },
+  { dept: "sales",        ts: "14:03", msg: "Web lead intake · plumber @ Muizenberg · dispatched Sales Retell agent" },
+  { dept: "success",      ts: "13:58", msg: "Call scored 2/5 · Jones Plumbing · issue: caller frustrated · owner pinged" },
+];
