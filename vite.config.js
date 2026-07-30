@@ -6,3 +6,4 @@ export default defineConfig({
   // If this later moves back behind a reverse proxy at /admin, restore base:"/admin/".
   plugins: [react()],
 });
+ 
