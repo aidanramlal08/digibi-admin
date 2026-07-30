@@ -159,20 +159,5 @@ export const AGENTS = [
   },
 ];
 
-export const SEED_APPROVALS = [
-  { dept: "sales",     deptLabel: "Sales",     risk: "low",  ctx: "Cold-Lead Nurture · touch 2 of 3 · sarah@boltelectrical.co.za", rec: "Send warm nudge referencing your load-shedding assist case study — reply expected within 24h." },
-  { dept: "marketing", deptLabel: "Marketing", risk: "med",  ctx: "Meta campaign · \"Cape Town Solar\" variant B", rec: "Scale daily budget from R220 → R330 (+50%). CPL R38 last 3 days, well under R60 target." },
-  { dept: "finance",   deptLabel: "Finance",   risk: "high", ctx: "Client · Jones Plumbing · 9 days past due · R2,400", rec: "Dispatch Retell billing agent (soft-tone script) tomorrow 10:00 SAST — 3rd attempt." },
-  { dept: "success",   deptLabel: "Success",   risk: "low",  ctx: "Happy client · Cape Reef Property · last call scored 5/5", rec: "Send WhatsApp asking for a Google review + a referral name. Draft personalised, mentions their geyser callout." },
-];
-
-export const SEED_STREAM = [
-  { dept: "sales",        ts: "14:32", msg: "Nurture batch drafted · 3 emails · awaiting your review" },
-  { dept: "success",      ts: "14:28", msg: "Call scored 4/5 · Cape Reef Property · resolved: true · HubSpot updated" },
-  { dept: "finance",      ts: "14:25", msg: "Overage meter run · 4 clients charged · R1,240 total" },
-  { dept: "orchestrator", ts: "14:20", msg: "Task dispatched to Sales · \"Follow up June solar demos\"" },
-  { dept: "marketing",    ts: "14:17", msg: "Yesterday CPL R38 · flagged 2 winners for scale approval" },
-  { dept: "content",      ts: "14:12", msg: "Higgsfield render queued · brief approved · \"Missed call → job lost\"" },
-  { dept: "sales",        ts: "14:03", msg: "Web lead intake · plumber @ Muizenberg · dispatched Sales Retell agent" },
-  { dept: "success",      ts: "13:58", msg: "Call scored 2/5 · Jones Plumbing · issue: caller frustrated · owner pinged" },
-];
+// Approvals and events live in Supabase now — the Agent Console fetches them
+// via /api/approvals and /api/agent-events. Nothing seeded here.

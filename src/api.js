@@ -44,3 +44,29 @@ export async function getBrief() {
   }
   return { ok: res.ok, status: res.status, data: out };
 }
+
+// Agent Console: pending approvals + master activity stream.
+export async function fetchApprovals() {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/approvals`, { method: "GET" });
+  let out = {};
+  try { out = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data: out };
+}
+
+export async function actOnApproval(id, action) {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/approvals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, action }),
+  });
+  let out = {};
+  try { out = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data: out };
+}
+
+export async function fetchAgentEvents({ limit = 50 } = {}) {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/agent-events?limit=${limit}`, { method: "GET" });
+  let out = {};
+  try { out = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data: out };
+}

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { C } from "../tokens.js";
 import { Eyebrow, PageTitle, PageDek, SectionTitle } from "../ui.jsx";
-import { AGENTS, AGENT_ACCENT, SEED_APPROVALS, SEED_STREAM } from "../agents.js";
+import { AGENTS, AGENT_ACCENT } from "../agents.js";
+import { fetchApprovals, actOnApproval, fetchAgentEvents } from "../api.js";
 
 const DEPT_COLOR = {
   sales: C.accent,
@@ -203,99 +204,93 @@ function AgentDetail({ agent }) {
   );
 }
 
-function ActivityStream({ items }) {
+function fmtEventTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  if (sameDay) return d.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-ZA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function ActivityStream({ items, notConfigured }) {
   return (
     <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 12, padding: "18px 18px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <SectionTitle style={{ margin: 0 }}>Master activity stream</SectionTitle>
-        <span style={{ fontSize: 11, color: C.ok, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok }} />
-          Live
+        <span style={{ fontSize: 11, color: notConfigured ? C.inkFaint : C.ok, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: notConfigured ? C.inkFaint : C.ok }} />
+          {notConfigured ? "Idle" : "Live"}
         </span>
       </div>
-      <div
-        style={{
-          fontFamily: "'SF Mono', 'Monaco', 'Cascadia Mono', 'Menlo', monospace",
-          fontSize: 12,
-          lineHeight: 1.6,
-          maxHeight: 260,
-          overflowY: "auto",
-          background: C.bg,
-          border: `1px solid ${C.line}`,
-          borderRadius: 8,
-          padding: 12,
-        }}
-      >
-        {items.map((it, i) => (
-          <div key={i} style={{ padding: "3px 0", color: C.inkDim, display: "flex", gap: 10 }}>
-            <span style={{ color: C.inkFaint, flexShrink: 0 }}>{it.ts}</span>
-            <span style={{ fontWeight: 600, flexShrink: 0, minWidth: 78, color: DEPT_COLOR[it.dept] || C.inkDim }}>{it.dept}</span>
-            <span style={{ color: C.ink }}>{it.msg}</span>
+      <div style={{ fontFamily: "'SF Mono', 'Monaco', 'Cascadia Mono', 'Menlo', monospace", fontSize: 12, lineHeight: 1.6, maxHeight: 260, overflowY: "auto", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12 }}>
+        {items.length === 0 ? (
+          <div style={{ color: C.inkFaint, fontFamily: C.body, fontSize: 13, padding: "8px 4px" }}>
+            {notConfigured ? "Waiting on backend configuration." : "No agent events yet."}
           </div>
-        ))}
+        ) : (
+          items.map((it) => (
+            <div key={it.id} style={{ padding: "3px 0", color: C.inkDim, display: "flex", gap: 10 }}>
+              <span style={{ color: C.inkFaint, flexShrink: 0 }}>{fmtEventTime(it.ts)}</span>
+              <span style={{ fontWeight: 600, flexShrink: 0, minWidth: 84, color: DEPT_COLOR[it.agent_id] || C.inkDim }}>{it.agent_id}</span>
+              <span style={{ color: it.level === "error" ? C.danger : it.level === "warn" ? C.warn : C.ink }}>{it.msg}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
 
-function ApprovalsPanel({ items }) {
+function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
   return (
     <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 12, padding: 18 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
         <SectionTitle style={{ margin: 0 }}>Approvals awaiting</SectionTitle>
-        <div style={{ fontFamily: C.display, fontSize: 24, fontWeight: 700, color: C.warn, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+        <div style={{ fontFamily: C.display, fontSize: 24, fontWeight: 700, color: items.length ? C.warn : C.inkFaint, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
           {items.length}
         </div>
       </div>
       <div style={{ fontSize: 12, color: C.inkDim, margin: "0 0 12px" }}>
-        One-click approve, or click through for full context.
+        {notConfigured
+          ? "Backend not configured yet — see the setup note below."
+          : items.length
+            ? "One-click approve, or reject to close the item."
+            : "Queue is empty. Agents will populate it as they run."}
       </div>
-      {items.map((a, i) => {
-        const riskColor = a.risk === "high" ? C.danger : a.risk === "med" ? C.warn : C.inkDim;
-        const riskBg = a.risk === "high" ? C.dangerWash : a.risk === "med" ? C.warnWash : C.sunken;
+      {items.map((a) => {
+        const risk = a.risk || "med";
+        const dept = a.agent_id;
+        const deptLabel = a.dept_label || dept;
+        const riskColor = risk === "high" ? C.danger : risk === "med" ? C.warn : C.inkDim;
+        const riskBg = risk === "high" ? C.dangerWash : risk === "med" ? C.warnWash : C.sunken;
+        const busy = busyId === a.id;
         return (
-          <div key={i} style={{ padding: 12, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, marginBottom: 8 }}>
+          <div key={a.id} style={{ padding: 12, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, marginBottom: 8, opacity: busy ? 0.6 : 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span
-                style={{
-                  fontFamily: C.display,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  background: (DEPT_COLOR[a.dept] || C.accent) + "22",
-                  color: DEPT_COLOR[a.dept] || C.accent,
-                }}
-              >
-                {a.deptLabel}
+              <span style={{ fontFamily: C.display, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: (DEPT_COLOR[dept] || C.accent) + "22", color: DEPT_COLOR[dept] || C.accent }}>
+                {deptLabel}
               </span>
               <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, letterSpacing: "0.05em", textTransform: "uppercase", background: riskBg, color: riskColor }}>
-                {a.risk}
+                {risk}
               </span>
             </div>
             <div style={{ fontSize: 12, color: C.inkDim, marginBottom: 4 }}>{a.ctx}</div>
             <div style={{ fontSize: 13, color: C.ink, marginBottom: 10, lineHeight: 1.4 }}>{a.rec}</div>
             <div style={{ display: "flex", gap: 6 }}>
               <button
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  border: "1px solid transparent",
-                  background: C.accent,
-                  color: "#fff",
-                  fontFamily: C.body,
-                }}
+                disabled={busy}
+                onClick={() => onAct(a.id, "approve")}
+                style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: "1px solid transparent", background: C.accent, color: "#fff", fontFamily: C.body }}
               >
-                Approve
+                {busy ? "…" : "Approve"}
               </button>
-              <button style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${C.lineStrong}`, background: C.paper, color: C.inkDim, fontFamily: C.body }}>
+              <button
+                disabled={busy}
+                onClick={() => onAct(a.id, "reject")}
+                style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: `1px solid ${C.lineStrong}`, background: C.paper, color: C.inkDim, fontFamily: C.body }}
+              >
                 Reject
-              </button>
-              <button style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${C.lineStrong}`, background: C.paper, color: C.inkDim, fontFamily: C.body }}>
-                Open
               </button>
             </div>
           </div>
@@ -307,7 +302,40 @@ function ApprovalsPanel({ items }) {
 
 export default function AgentConsolePage() {
   const [selectedId, setSelectedId] = useState("sales");
+  const [approvals, setApprovals] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [storeReady, setStoreReady] = useState(true); // assume yes until told otherwise
+  const [actionsToday, setActionsToday] = useState(0);
+  const [busyId, setBusyId] = useState(null);
   const agent = AGENTS.find((a) => a.id === selectedId) || AGENTS[0];
+
+  const refresh = useCallback(async () => {
+    const [apRes, evRes] = await Promise.all([fetchApprovals(), fetchAgentEvents({ limit: 60 })]);
+    if (apRes.ok && apRes.data) {
+      setApprovals(apRes.data.items || []);
+      if (apRes.data.storeConfigured === false) setStoreReady(false);
+      else setStoreReady(true);
+    }
+    if (evRes.ok && evRes.data) {
+      const items = evRes.data.items || [];
+      setEvents(items);
+      const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+      setActionsToday(items.filter((e) => new Date(e.ts) >= startOfDay && /^(Tool|Executed):/i.test(e.msg)).length);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  const onAct = useCallback(async (id, action) => {
+    setBusyId(id);
+    await actOnApproval(id, action);
+    setBusyId(null);
+    refresh();
+  }, [refresh]);
 
   return (
     <div>
@@ -316,22 +344,21 @@ export default function AgentConsolePage() {
         <span style={{ color: C.accent }}>6 agents.</span> 22 workflows. One console.
       </PageTitle>
       <PageDek>
-        Every DigiBi operation — outbound, ads, calls, billing, content — routed through Claude/Gemini agents that stop for you at every decision that matters. Existing n8n webhooks stay in place as the plumbing agents call; you keep working code, agents add the judgment.
+        Every DigiBi operation — outbound, ads, calls, billing, content — routed through Gemini agents that stop for you at every decision that matters. Existing n8n webhooks stay in place as the plumbing agents call; you keep working code, agents add the judgment.
       </PageDek>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
+      {!storeReady ? (
+        <div style={{ background: C.warnWash, border: `1px solid ${C.warn}44`, borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: C.ink }}>
+          <strong style={{ color: C.warn }}>Backend not connected.</strong> Set <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>SUPABASE_URL</code> and <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>SUPABASE_SERVICE_KEY</code> on Vercel and run <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>db/schema.sql</code> in your Supabase to activate approvals + event history.
+        </div>
+      ) : null}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
         {[
           { label: "Agents live", value: "6", hint: "All departments online", accent: C.ok },
-          { label: "Pending approvals", value: String(SEED_APPROVALS.length), hint: "Your remaining job", accent: C.warn },
+          { label: "Pending approvals", value: String(approvals.length), hint: approvals.length ? "Your remaining job" : "Nothing waiting", accent: approvals.length ? C.warn : undefined },
           { label: "Workflows absorbed", value: "22", hint: "Of 22 DigiBi n8n flows" },
-          { label: "Actions today", value: "147", hint: "Autonomous · 3 escalated" },
+          { label: "Actions today", value: String(actionsToday), hint: "Tool calls + executed approvals" },
         ].map((k, i) => (
           <div key={i} style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 16px" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600, marginBottom: 8 }}>{k.label}</div>
@@ -349,8 +376,8 @@ export default function AgentConsolePage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "5fr 4fr", gap: 20 }} className="grid-2-fallback">
-        <ActivityStream items={SEED_STREAM} />
-        <ApprovalsPanel items={SEED_APPROVALS} />
+        <ActivityStream items={events} notConfigured={!storeReady} />
+        <ApprovalsPanel items={approvals} notConfigured={!storeReady} onAct={onAct} busyId={busyId} />
       </div>
     </div>
   );
