@@ -36,6 +36,60 @@ const PAGE_COMPONENTS = {
   "/system": SystemHealthPage,
 };
 
+// Shows the actual server error from /api/admin?action=overview and maps the
+// HTTP status to a likely cause, so we don't need DevTools to diagnose.
+function ErrorBanner({ detail, onRetry }) {
+  const status = detail?.status;
+  const serverMsg = detail?.message || "";
+  let title = "Couldn't load the dashboard.";
+  let hint = "";
+  if (status === 503) {
+    title = "Admin backend not configured.";
+    hint =
+      "The /api/admin endpoint needs ADMIN_JWT_SECRET, ADMIN_PROXY_SECRET, and N8N_ADMIN_WEBHOOK_URL set on this Vercel project. Add whichever is missing under Project → Settings → Environment Variables, then redeploy.";
+  } else if (status === 502) {
+    title = "n8n webhook not reachable.";
+    hint =
+      "Your Owner Dashboard workflow in n8n either isn't responding or returned an error. Check that N8N_ADMIN_WEBHOOK_URL points at the correct workflow, the workflow is Active, and it accepts POST { action: 'overview' } with header x-admin-proxy-secret matching ADMIN_PROXY_SECRET.";
+  } else if (status === 401) {
+    title = "Session expired.";
+    hint = "Sign out and back in.";
+  } else if (!status) {
+    title = "Couldn't reach /api/admin.";
+    hint = "Network error or the API function crashed. Check Vercel → Deployments → latest → Functions logs.";
+  }
+  return (
+    <div style={{ border: "1px solid #C43D3D33", background: "#C43D3D0F", borderRadius: 12, padding: 18, maxWidth: 640 }}>
+      <div style={{ color: "#C43D3D", fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+      {serverMsg ? (
+        <div style={{ fontSize: 12.5, color: "#5B6478", marginBottom: hint ? 10 : 0 }}>
+          <strong>Server said:</strong> {serverMsg}
+          {status ? <> · HTTP {status}</> : null}
+        </div>
+      ) : status ? (
+        <div style={{ fontSize: 12.5, color: "#5B6478", marginBottom: hint ? 10 : 0 }}>HTTP {status}</div>
+      ) : null}
+      {hint ? <div style={{ fontSize: 13, color: "#11131D", lineHeight: 1.5, marginBottom: 12 }}>{hint}</div> : null}
+      <button
+        onClick={onRetry}
+        style={{
+          fontFamily: "'Hanken Grotesk', sans-serif",
+          fontSize: 13,
+          fontWeight: 700,
+          padding: "8px 14px",
+          borderRadius: 8,
+          border: "1px solid #CDD4E8",
+          background: "#fff",
+          color: "#11131D",
+          cursor: "pointer",
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 // Sections the n8n Owner Dashboard API doesn't return yet — default them so
 // the console still renders instead of crashing on a missing field.
 function withFallbacks(data) {
@@ -95,15 +149,18 @@ export default function Console({ onSignedOut }) {
   const [state, setState] = useState("loading"); // loading | ready | error
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorDetail, setErrorDetail] = useState(null); // { status, message }
 
   const load = useCallback(async (silent) => {
     if (silent) setRefreshing(true);
     else setState("loading");
-    const { ok, data: res } = await callAdmin("overview", {});
+    const { ok, status, data: res } = await callAdmin("overview", {});
     if (ok && res.ok) {
       setData(withFallbacks(res.data));
+      setErrorDetail(null);
       setState("ready");
     } else {
+      setErrorDetail({ status, message: (res && res.error) || "" });
       setState("error");
     }
     setRefreshing(false);
@@ -128,7 +185,7 @@ export default function Console({ onSignedOut }) {
       <Sidebar path={activePath} go={go} refreshing={refreshing} onRefresh={() => load(true)} onSignOut={signOut} data={data} />
       <div className="app-main" style={{ flex: 1, padding: "32px 40px 80px", maxWidth: 1080 }}>
         {state === "error" ? (
-          <div style={{ color: "#C43D3D", fontSize: 14 }}>Couldn't load the dashboard. Try refreshing.</div>
+          <ErrorBanner detail={errorDetail} onRetry={() => load(false)} />
         ) : data ? (
           <PageComponent data={data} onRefresh={() => load(true)} go={go} />
         ) : null}
