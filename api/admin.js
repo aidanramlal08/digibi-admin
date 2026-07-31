@@ -2,7 +2,7 @@
 // env var and is never stored anywhere else. Session is an HS256 JWT signed
 // here, carried in an httpOnly cookie — page JS never sees it. The "overview"
 // action requires a verified session and proxies to n8n's Owner Dashboard API,
-// which does the real aggregation (HubSpot + Paystack + call data).
+// which does the real aggregation (HubSpot + Yoco + call data).
 import crypto from "node:crypto";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";

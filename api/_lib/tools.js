@@ -10,7 +10,7 @@
 //     result to the agent AND create an approval record; the actual side
 //     effect only fires when the owner approves via /api/approvals.
 //
-// Integrations that need extra credentials (Retell, Paystack, Meta, WhatsApp,
+// Integrations that need extra credentials (Retell, Yoco, Meta, WhatsApp,
 // Higgsfield, Slack) return { error: "Tool not configured" } cleanly when
 // their env var isn't set — nothing crashes, the agent adapts.
 
@@ -73,9 +73,9 @@ const executors = {
   retell_dispatch_call:        notConfigured("Retell",          "RETELL_API_KEY"),
   retell_create_agent:         notConfigured("Retell",          "RETELL_API_KEY"),
 
-  // Paystack (billing)
-  paystack_charge:             notConfigured("Paystack",        "PAYSTACK_SECRET_KEY"),
-  paystack_subscription:       notConfigured("Paystack",        "PAYSTACK_SECRET_KEY"),
+  // Yoco (billing)
+  yoco_charge:                 notConfigured("Yoco",            "YOCO_SECRET_KEY"),
+  yoco_subscription:           notConfigured("Yoco",            "YOCO_SECRET_KEY"),
 
   // Meta (ads)
   meta_insights:               notConfigured("Meta Graph",      "META_ACCESS_TOKEN"),
