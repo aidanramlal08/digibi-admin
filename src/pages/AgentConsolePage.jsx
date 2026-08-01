@@ -13,7 +13,7 @@ const DEPT_COLOR = {
   orchestrator: "#FB923C",
 };
 
-// Compact card for one agent — click opens the chat drawer.
+// Compact card for the 3x2 grid. Click opens the full detail modal.
 function AgentCard({ agent, onOpen }) {
   const accent = AGENT_ACCENT[agent.id];
   const status = agent.status;
@@ -32,7 +32,7 @@ function AgentCard({ agent, onOpen }) {
         display: "flex",
         flexDirection: "column",
         gap: 8,
-        transition: "border-color 120ms, box-shadow 120ms",
+        transition: "border-color 120ms, box-shadow 120ms, transform 120ms",
       }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${accent}18`; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.line; e.currentTarget.style.boxShadow = "none"; }}
@@ -52,18 +52,88 @@ function AgentCard({ agent, onOpen }) {
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600 }}>{agent.metricLabel}</div>
           <div style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", color: C.ink, lineHeight: 1.1 }}>{agent.metricValue}</div>
         </div>
-        <span style={{ fontSize: 11, color: accent, fontWeight: 700, whiteSpace: "nowrap" }}>Chat →</span>
+        <span style={{ fontSize: 11, color: accent, fontWeight: 700, whiteSpace: "nowrap" }}>Open →</span>
       </div>
     </button>
   );
 }
 
-// Slide-in chat panel for the selected agent. Sits fixed on the right,
-// scrollable messages, sticky composer at the bottom.
-function ChatDrawer({ agent, onClose, history, onSend, busy, error }) {
+// Full agent detail — pipeline, absorbs, tools. Rendered inside the modal.
+function AgentDetail({ agent }) {
+  const accent = AGENT_ACCENT[agent.id];
+  return (
+    <div>
+      <div style={{ fontFamily: C.display, fontSize: 14, color: C.ink, lineHeight: 1.5, marginBottom: 20 }}>{agent.tagline}</div>
+
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginBottom: 10 }}>Pipeline</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+        {agent.pipeline.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              gap: 12,
+              padding: "10px 12px",
+              background: s.gate ? `linear-gradient(90deg, ${accent}14, ${accent}04)` : C.bg,
+              border: `1px solid ${s.gate ? accent + "44" : C.line}`,
+              borderRadius: 8,
+            }}
+          >
+            <div style={{ fontFamily: C.display, fontSize: 10.5, fontWeight: 700, color: s.gate ? accent : C.inkFaint, letterSpacing: "0.05em", fontVariantNumeric: "tabular-nums", flexShrink: 0, minWidth: 44 }}>
+              {String(i + 1).padStart(2, "0")}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                <div style={{ fontFamily: C.display, fontSize: 13, fontWeight: 700, color: C.ink }}>{s.name}</div>
+                {s.gate ? (
+                  <span style={{ background: accent, color: "#0A0A0F", fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 6px", borderRadius: 4 }}>
+                    Human gate
+                  </span>
+                ) : null}
+              </div>
+              <div style={{ fontSize: 12, color: C.inkDim, lineHeight: 1.4 }}>{s.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginBottom: 10 }}>Absorbs (as reasoning)</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
+        {agent.absorbs.map((w, i) => (
+          <div key={i} style={{ padding: "9px 12px", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8 }}>
+            <div style={{ fontFamily: C.display, fontWeight: 600, color: C.ink, fontSize: 13 }}>{w.name}</div>
+            <div style={{ fontSize: 11.5, color: C.inkDim, marginTop: 2 }}>{w.why}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginBottom: 10 }}>Tools it calls</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {agent.tools.map((t, i) => (
+          <div
+            key={i}
+            style={{
+              padding: "8px 10px",
+              background: C.bg,
+              border: `1px solid ${C.line}`,
+              borderRadius: 6,
+              fontFamily: "'SF Mono', 'Monaco', 'Cascadia Mono', 'Menlo', monospace",
+              fontSize: 12,
+              color: C.ink,
+            }}
+          >
+            {t}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Chat panel for the currently-open agent. Manages its own draft input.
+function AgentChat({ agent, history, onSend, busy, error }) {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef(null);
-  const accent = AGENT_ACCENT[agent.id];
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -77,94 +147,144 @@ function ChatDrawer({ agent, onClose, history, onSend, busy, error }) {
   };
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 12 }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line}`, fontFamily: C.display, fontSize: 12, fontWeight: 700, color: C.inkDim, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        Chat with {agent.name}
+      </div>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10, minHeight: 200 }}>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.inkFaint, fontStyle: "italic", padding: "6px 0" }}>
+            Ask about their work, what they're seeing in the CRM, or tell them what to do. Any action they take still needs your approval.
+          </div>
+        ) : null}
+        {history.map((m, i) => (
+          <div
+            key={i}
+            style={{
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              maxWidth: "88%",
+              background: m.role === "user" ? C.accent : C.paper,
+              color: m.role === "user" ? "#fff" : C.ink,
+              border: m.role === "user" ? "none" : `1px solid ${C.line}`,
+              borderRadius: 10,
+              padding: "9px 12px",
+              fontSize: 13,
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {m.content}
+          </div>
+        ))}
+        {busy ? (
+          <div style={{ alignSelf: "flex-start", fontSize: 12, color: C.inkFaint, fontStyle: "italic", padding: "4px 4px" }}>
+            {agent.name} is thinking…
+          </div>
+        ) : null}
+        {error ? (
+          <div style={{ alignSelf: "stretch", background: C.dangerWash, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "8px 10px", color: C.danger, fontSize: 12 }}>
+            {error}
+          </div>
+        ) : null}
+      </div>
+      <form onSubmit={submit} style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 6, background: C.paper, borderRadius: "0 0 12px 12px" }}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={`Ask ${agent.name}…`}
+          disabled={busy}
+          style={{ flex: 1, padding: "9px 11px", borderRadius: 7, border: `1px solid ${C.lineStrong}`, fontFamily: C.body, fontSize: 13, color: C.ink, background: C.paper, outline: "none" }}
+        />
+        <button
+          type="submit"
+          disabled={busy || !draft.trim()}
+          style={{ padding: "9px 14px", borderRadius: 7, border: "none", background: busy || !draft.trim() ? C.lineStrong : C.accent, color: "#fff", fontFamily: C.body, fontWeight: 700, fontSize: 12, cursor: busy || !draft.trim() ? "default" : "pointer" }}
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// Full-screen modal — details on the left, chat on the right.
+function AgentDetailModal({ agent, onClose, history, onSend, busy, error }) {
+  const accent = AGENT_ACCENT[agent.id];
+  return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,11,15,0.35)", zIndex: 40 }} />
-      <aside
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(11,11,15,0.5)", zIndex: 40, backdropFilter: "blur(2px)" }} />
+      <div
+        role="dialog"
+        aria-label={`${agent.name} details`}
         style={{
           position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: "min(440px, 100vw)",
+          inset: "3vh 3vw",
+          maxWidth: 1200,
+          margin: "0 auto",
           background: C.paper,
-          borderLeft: `1px solid ${C.line}`,
-          boxShadow: "-16px 0 40px rgba(11,11,15,0.15)",
+          border: `1px solid ${C.line}`,
+          borderRadius: 16,
+          boxShadow: "0 24px 80px rgba(11,11,15,0.25)",
           zIndex: 50,
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <header style={{ padding: "16px 18px", borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}22`, color: accent, display: "grid", placeItems: "center", fontFamily: C.display, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+        <header style={{ padding: "18px 22px", borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: 14, background: `linear-gradient(180deg, ${accent}0A, transparent)` }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: `${accent}22`, color: accent, display: "grid", placeItems: "center", fontFamily: C.display, fontWeight: 700, fontSize: 18, flexShrink: 0 }}>
             {agent.name.charAt(0)}
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: C.display, fontSize: 15, fontWeight: 700, color: C.ink }}>{agent.name}</div>
-            <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 1 }}>{agent.role}</div>
+            <div style={{ fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1, letterSpacing: "-0.01em" }}>{agent.name}</div>
+            <div style={{ fontSize: 12.5, color: C.inkDim, marginTop: 2 }}>{agent.role}</div>
+          </div>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "5px 12px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 600,
+              background: agent.status === "running" ? C.okWash : agent.status === "pending" ? C.warnWash : C.sunken,
+              color: agent.status === "running" ? C.ok : agent.status === "pending" ? C.warn : C.inkDim,
+              border: `1px solid ${agent.status === "running" ? "#10B98133" : agent.status === "pending" ? "#F59E0B33" : C.line}`,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+            {agent.statusLabel}
+          </span>
+          <div style={{ textAlign: "right", paddingLeft: 6 }}>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600 }}>{agent.metricLabel}</div>
+            <div style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.ink }}>{agent.metricValue}</div>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close chat"
-            style={{ background: "transparent", border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontFamily: C.body, fontSize: 13, color: C.inkDim }}
+            aria-label="Close"
+            style={{ background: "transparent", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: C.body, fontSize: 13, color: C.inkDim, marginLeft: 4 }}
           >
             Close
           </button>
         </header>
 
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {history.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.inkFaint, fontStyle: "italic", padding: "8px 0" }}>
-              {agent.tagline}
-            </div>
-          ) : null}
-          {history.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "85%",
-                background: m.role === "user" ? C.accent : C.bg,
-                color: m.role === "user" ? "#fff" : C.ink,
-                border: m.role === "user" ? "none" : `1px solid ${C.line}`,
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 13.5,
-                lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {m.content}
-            </div>
-          ))}
-          {busy ? (
-            <div style={{ alignSelf: "flex-start", fontSize: 12, color: C.inkFaint, fontStyle: "italic", padding: "6px 4px" }}>
-              {agent.name} is thinking…
-            </div>
-          ) : null}
-          {error ? (
-            <div style={{ alignSelf: "stretch", background: C.dangerWash, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "8px 10px", color: C.danger, fontSize: 12.5 }}>
-              {error}
-            </div>
-          ) : null}
+        <div className="agent-modal-body" style={{ flex: 1, display: "grid", gridTemplateColumns: "3fr 2fr", gap: 0, overflow: "hidden" }}>
+          <div style={{ overflowY: "auto", padding: 22, borderRight: `1px solid ${C.line}` }}>
+            <AgentDetail agent={agent} />
+          </div>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <AgentChat agent={agent} history={history} onSend={onSend} busy={busy} error={error} />
+          </div>
         </div>
 
-        <form onSubmit={submit} style={{ padding: 14, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, background: C.paper }}>
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={`Ask ${agent.name}…`}
-            disabled={busy}
-            style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.lineStrong}`, fontFamily: C.body, fontSize: 13.5, color: C.ink, background: C.paper, outline: "none" }}
-          />
-          <button
-            type="submit"
-            disabled={busy || !draft.trim()}
-            style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: busy || !draft.trim() ? C.lineStrong : C.accent, color: "#fff", fontFamily: C.body, fontWeight: 700, fontSize: 13, cursor: busy || !draft.trim() ? "default" : "pointer" }}
-          >
-            Send
-          </button>
-        </form>
-      </aside>
+        <style>{`
+          @media (max-width: 900px) {
+            .agent-modal-body { grid-template-columns: 1fr !important; }
+            .agent-modal-body > div:first-child { border-right: none !important; border-bottom: 1px solid ${C.line}; max-height: 40vh; }
+          }
+        `}</style>
+      </div>
     </>
   );
 }
@@ -257,7 +377,7 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
 
 export default function AgentConsolePage() {
   const [openAgentId, setOpenAgentId] = useState(null);
-  const [chatHistories, setChatHistories] = useState({}); // { [agentId]: [{role, content}] }
+  const [chatHistories, setChatHistories] = useState({});
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
 
@@ -296,12 +416,12 @@ export default function AgentConsolePage() {
     refresh();
   }, [refresh]);
 
-  const openChat = useCallback((agentId) => {
+  const openAgentDetail = useCallback((agentId) => {
     setOpenAgentId(agentId);
     setChatError("");
   }, []);
 
-  const closeChat = useCallback(() => {
+  const closeAgentDetail = useCallback(() => {
     setOpenAgentId(null);
     setChatError("");
   }, []);
@@ -315,23 +435,19 @@ export default function AgentConsolePage() {
     const { ok, data } = await askAgent(openAgentId, nextHistory);
     setChatBusy(false);
     if (ok && data.ok && data.answer) {
-      setChatHistories((prev) => ({
-        ...prev,
-        [openAgentId]: [...nextHistory, { role: "assistant", content: data.answer }],
-      }));
-      refresh(); // in case the chat queued an approval
+      setChatHistories((prev) => ({ ...prev, [openAgentId]: [...nextHistory, { role: "assistant", content: data.answer }] }));
+      refresh();
     } else {
       setChatError((data && data.error) || "Couldn't reach the agent.");
     }
   }, [openAgentId, chatHistories, refresh]);
 
-  // Close on Escape
   useEffect(() => {
     if (!openAgentId) return;
-    const onKey = (e) => { if (e.key === "Escape") closeChat(); };
+    const onKey = (e) => { if (e.key === "Escape") closeAgentDetail(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openAgentId, closeChat]);
+  }, [openAgentId, closeAgentDetail]);
 
   return (
     <div>
@@ -340,7 +456,7 @@ export default function AgentConsolePage() {
         <span style={{ color: C.accent }}>6 agents.</span> 22 workflows. One console.
       </PageTitle>
       <PageDek>
-        Click any agent to open a chat. They can search your CRM live, explain what they see, and queue actions for your approval — all without leaving the page.
+        Click any agent to see how they work and chat with them live. They can search your CRM, explain what they see, and queue actions for your approval — all without leaving this page.
       </PageDek>
 
       {!storeReady ? (
@@ -367,7 +483,7 @@ export default function AgentConsolePage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }} className="agent-grid">
-        {AGENTS.map((a) => <AgentCard key={a.id} agent={a} onOpen={openChat} />)}
+        {AGENTS.map((a) => <AgentCard key={a.id} agent={a} onOpen={openAgentDetail} />)}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "5fr 4fr", gap: 16 }} className="grid-2-fallback">
@@ -376,9 +492,9 @@ export default function AgentConsolePage() {
       </div>
 
       {openAgent ? (
-        <ChatDrawer
+        <AgentDetailModal
           agent={openAgent}
-          onClose={closeChat}
+          onClose={closeAgentDetail}
           history={chatHistories[openAgent.id] || []}
           onSend={sendMessage}
           busy={chatBusy}

@@ -1,20 +1,20 @@
 import React, { useState } from "react";
 import { C, zar } from "../tokens.js";
 import { callAdmin } from "../api.js";
-import { StatCard, StatRow, Eyebrow, PageTitle, PageDek, PillRow, Pill, DataTable, Field, Button, Notice, Rule, SectionTitle, TrendLine } from "../ui.jsx";
+import { StatCard, StatRow, Eyebrow, PageTitle, PageDek, PillRow, Pill, DataTable, Notice, Rule, SectionTitle, TrendLine } from "../ui.jsx";
 import { EXPENSE_CATEGORIES } from "../lib.js";
 
-function ExpenseForm({ onAdded }) {
+// Renders as an inline table row (<tr>) so the form's columns are literally
+// the same table columns as the data rows below — perfect alignment.
+function ExpenseRow({ onAdded }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError("");
+  const submit = async () => {
+    if (busy || !date || !category || !amount) return;
     setBusy(true);
     const { ok, data } = await callAdmin("add-expense", {
       date,
@@ -28,38 +28,59 @@ function ExpenseForm({ onAdded }) {
       setDescription("");
       setAmount("");
       onAdded();
-    } else {
-      setError((data && data.error) || "Couldn't add that expense.");
     }
   };
 
+  const cellStyle = { padding: "8px 12px", borderBottom: `1px solid ${C.line}`, background: C.bg, verticalAlign: "middle" };
+  const inputStyle = { width: "100%", padding: "7px 9px", borderRadius: 6, fontSize: 13, background: C.paper, border: `1px solid ${C.lineStrong}`, color: C.ink, fontFamily: C.body, outline: "none" };
+
   return (
-    <form onSubmit={submit} style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: "16px 18px", marginBottom: 20 }}>
-      <Notice kind="error">{error}</Notice>
-      <div style={{ display: "grid", gridTemplateColumns: "160px 180px 1fr 140px auto", gap: 12, alignItems: "end" }}>
-        <Field label="Date" type="date" value={date} onChange={setDate} />
-        <div>
-          <label style={{ display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, marginBottom: 6, fontWeight: 700 }}>Category</label>
+    <tr>
+      <td style={cellStyle}>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+      </td>
+      <td style={cellStyle}>
+        <input list="expense-categories" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" style={inputStyle} />
+        <datalist id="expense-categories">
+          {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}
+        </datalist>
+      </td>
+      <td style={cellStyle}>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was it for?" style={inputStyle} />
+      </td>
+      <td style={{ ...cellStyle, textAlign: "right" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
           <input
-            list="expense-categories"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="Software"
-            style={{ width: "100%", padding: "9px 11px", borderRadius: 8, fontSize: 14, background: C.paper, border: `1px solid ${C.lineStrong}`, color: C.ink, fontFamily: C.body, outline: "none" }}
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            placeholder="0.00"
+            style={{ ...inputStyle, width: 100, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
           />
-          <datalist id="expense-categories">
-            {EXPENSE_CATEGORIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !date || !category || !amount}
+            style={{
+              padding: "7px 14px",
+              borderRadius: 6,
+              border: "none",
+              background: busy || !date || !category || !amount ? C.lineStrong : C.accent,
+              color: "#fff",
+              fontFamily: C.body,
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: busy || !date || !category || !amount ? "default" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {busy ? "…" : "Add"}
+          </button>
         </div>
-        <Field label="Description" value={description} onChange={setDescription} placeholder="What was it for?" />
-        <Field label="Amount (ZAR)" type="number" value={amount} onChange={setAmount} placeholder="0.00" />
-        <Button type="submit" disabled={busy || !date || !category || !amount}>
-          {busy ? "Adding…" : "Add expense"}
-        </Button>
-      </div>
-    </form>
+      </td>
+    </tr>
   );
 }
 
@@ -107,11 +128,11 @@ export default function CostsPage({ data, onRefresh }) {
           </Pill>
         ))}
       </PillRow>
-      <ExpenseForm onAdded={onRefresh} />
       <DataTable
-        empty="No expenses logged yet."
+        empty="No expenses logged yet — add one above."
         searchKeys={["category", "description"]}
         exportName="expenses"
+        topRow={<ExpenseRow onAdded={onRefresh} />}
         columns={[
           { key: "date", label: "Date", render: (r) => (r.date ? new Date(r.date).toLocaleDateString("en-ZA") : "—"), csv: (r) => r.date },
           { key: "category", label: "Category" },

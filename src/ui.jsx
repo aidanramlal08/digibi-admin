@@ -226,8 +226,10 @@ function downloadCsv(filename, columns, rows) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function Table({ columns, rows, empty }) {
-  if (!rows || rows.length === 0) {
+export function Table({ columns, rows, empty, topRow }) {
+  const hasRows = rows && rows.length > 0;
+  const hasTopRow = topRow != null;
+  if (!hasRows && !hasTopRow) {
     return <div style={{ fontSize: 13, color: C.inkFaint, padding: "20px 4px" }}>{empty || "Nothing here yet."}</div>;
   }
   return (
@@ -257,25 +259,34 @@ export function Table({ columns, rows, empty }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  style={{
-                    textAlign: col.num ? "right" : "left",
-                    padding: "10px 12px",
-                    borderBottom: i < rows.length - 1 ? `1px solid ${C.line}` : "none",
-                    color: C.ink,
-                    whiteSpace: "nowrap",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {col.render ? col.render(row) : row[col.key]}
-                </td>
-              ))}
+          {topRow}
+          {hasRows ? (
+            rows.map((row, i) => (
+              <tr key={i}>
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      textAlign: col.num ? "right" : "left",
+                      padding: "10px 12px",
+                      borderBottom: i < rows.length - 1 ? `1px solid ${C.line}` : "none",
+                      color: C.ink,
+                      whiteSpace: "nowrap",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {col.render ? col.render(row) : row[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={columns.length} style={{ padding: "20px 12px", color: C.inkFaint, fontStyle: "italic", textAlign: "center" }}>
+                {empty || "Nothing here yet."}
+              </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>
@@ -283,7 +294,9 @@ export function Table({ columns, rows, empty }) {
 }
 
 // Table + search box + CSV export, filtering client-side over searchKeys.
-export function DataTable({ columns, rows, empty, searchKeys, exportName }) {
+// `topRow` is a <tr> rendered as the first tbody row — use it for inline
+// forms that need to line up with the table's columns.
+export function DataTable({ columns, rows, empty, searchKeys, exportName, topRow }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -312,7 +325,7 @@ export function DataTable({ columns, rows, empty, searchKeys, exportName }) {
           ) : null
         }
       />
-      <Table columns={columns} rows={filtered} empty={empty} />
+      <Table columns={columns} rows={filtered} empty={empty} topRow={topRow} />
     </div>
   );
 }
