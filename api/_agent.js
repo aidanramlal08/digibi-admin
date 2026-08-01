@@ -134,7 +134,8 @@ export async function runAgent({ messages, dashboardData, brief }) {
       return { ok: true, answer: answer || "(No answer generated.)" };
     }
     return { ok: true, answer: "That took more steps than expected — try narrowing the question." };
-  } catch {
-    return { ok: false, error: "The assistant hit an error reaching the model or CRM." };
+  } catch (err) {
+    const detail = String((err && err.message) || err || "").slice(0, 300);
+    return { ok: false, error: detail ? `Assistant error: ${detail}` : "The assistant hit an error reaching the model or CRM." };
   }
 }

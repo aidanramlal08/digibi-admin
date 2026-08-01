@@ -36,7 +36,7 @@ function ExpenseForm({ onAdded }) {
   return (
     <form onSubmit={submit} style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: "16px 18px", marginBottom: 20 }}>
       <Notice kind="error">{error}</Notice>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "160px 180px 1fr 140px auto", gap: 12, alignItems: "end" }}>
         <Field label="Date" type="date" value={date} onChange={setDate} />
         <div>
           <label style={{ display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, marginBottom: 6, fontWeight: 700 }}>Category</label>

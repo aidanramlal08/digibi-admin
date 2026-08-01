@@ -70,3 +70,16 @@ export async function fetchAgentEvents({ limit = 50 } = {}) {
   try { out = await res.json(); } catch {}
   return { ok: res.ok, status: res.status, data: out };
 }
+
+// Chat with a specific Structure OS agent (sales / marketing / …). Same
+// runtime as the cron endpoints but conversational — replies with { ok, answer }.
+export async function askAgent(agentId, messages) {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/agent-chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agentId, messages }),
+  });
+  let out = {};
+  try { out = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data: out };
+}
