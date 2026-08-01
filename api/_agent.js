@@ -4,7 +4,7 @@
 // keeps Vercel from routing this file.
 
 // Model is configurable via env so you can switch tiers without a code change.
-const MODEL = process.env.ASSISTANT_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.ASSISTANT_MODEL || "gemini-3.1-flash";
 const MAX_TOOL_ROUNDS = 6;
 
 // Live CRM lookup so the agent can drill past the aggregated dashboard snapshot
