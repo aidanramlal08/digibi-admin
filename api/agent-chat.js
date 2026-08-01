@@ -8,7 +8,7 @@ import { toolDeclarationsFor, runExecutor, handleQueueForApproval } from "./_lib
 import { logEvent } from "./_lib/store.js";
 import crypto from "node:crypto";
 
-const MODEL = process.env.ASSISTANT_MODEL || "gemini-3.1-flash";
+const MODEL = process.env.ASSISTANT_MODEL || "gemini-3.1-flash-lite";
 const MAX_ROUNDS = 6;
 
 async function callGemini(apiKey, body) {
