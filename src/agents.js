@@ -145,17 +145,17 @@ export const AGENTS = [
     pipeline: [
       { name: "Daily meter", desc: "Per-client overage minutes → ZAR charges." },
       { name: "Anomaly check", desc: "Missing rate cards · usage spikes · near-limit accounts." },
-      { name: "Charge or hold", desc: "Yoco charge on clean records; hold + alert on anomalies." },
+      { name: "Charge or hold", desc: "Paystack charge on clean records; hold + alert on anomalies." },
       { name: "Dunning", desc: "Failed payment > 7 days → queue Retell billing call." },
       { name: "Human gate", desc: "You approve any dunning-call sequence before it dials.", gate: true },
       { name: "Provision", desc: "On payment success: create Retell agent + number, flip HubSpot stage." },
     ],
     absorbs: [
-      { name: "Usage Reporting (Yoco)", why: "Interpret usage anomalies; flag missing rate cards." },
+      { name: "Usage Reporting (Paystack)", why: "Interpret usage anomalies; flag missing rate cards." },
       { name: "Dunning Check", why: "Decide how hard to push, when to escalate." },
       { name: "Auto-Provisioning judgment", why: "Sanity-check payment → new Retell agent before executing." },
     ],
-    tools: ["yoco.charge", "yoco.subscription", "retell.create_agent", "retell.buy_number", "hubspot.contacts_update"],
+    tools: ["paystack.charge", "paystack.subscription", "retell.create_agent", "retell.buy_number", "hubspot.contacts_update"],
   },
 ];
 

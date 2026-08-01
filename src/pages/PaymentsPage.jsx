@@ -20,7 +20,7 @@ export default function PaymentsPage({ data }) {
     <div>
       <Eyebrow>Revenue</Eyebrow>
       <PageTitle>Payments</PageTitle>
-      <PageDek>Every charge Yoco has processed, successful or not.</PageDek>
+      <PageDek>Every charge Paystack has processed, successful or not.</PageDek>
       <StatRow>
         <StatCard label="Revenue (all time)" value={zar(data.payments.totalRevenueZAR)} accent={C.ok} />
         <StatCard label={`Revenue (${range}d)`} value={zar(rangeRevenue)} />
