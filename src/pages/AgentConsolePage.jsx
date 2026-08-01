@@ -375,7 +375,7 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
   );
 }
 
-export default function AgentConsolePage() {
+export default function AgentConsolePage({ data }) {
   const [openAgentId, setOpenAgentId] = useState(null);
   const [chatHistories, setChatHistories] = useState({});
   const [chatBusy, setChatBusy] = useState(false);
@@ -432,15 +432,15 @@ export default function AgentConsolePage() {
     const nextHistory = [...(chatHistories[openAgentId] || []), { role: "user", content: text }];
     setChatHistories((prev) => ({ ...prev, [openAgentId]: nextHistory }));
     setChatBusy(true);
-    const { ok, data } = await askAgent(openAgentId, nextHistory);
+    const res = await askAgent(openAgentId, nextHistory, data);
     setChatBusy(false);
-    if (ok && data.ok && data.answer) {
-      setChatHistories((prev) => ({ ...prev, [openAgentId]: [...nextHistory, { role: "assistant", content: data.answer }] }));
+    if (res.ok && res.data.ok && res.data.answer) {
+      setChatHistories((prev) => ({ ...prev, [openAgentId]: [...nextHistory, { role: "assistant", content: res.data.answer }] }));
       refresh();
     } else {
-      setChatError((data && data.error) || "Couldn't reach the agent.");
+      setChatError((res.data && res.data.error) || "Couldn't reach the agent.");
     }
-  }, [openAgentId, chatHistories, refresh]);
+  }, [openAgentId, chatHistories, data, refresh]);
 
   useEffect(() => {
     if (!openAgentId) return;

@@ -73,11 +73,13 @@ export async function fetchAgentEvents({ limit = 50 } = {}) {
 
 // Chat with a specific Structure OS agent (sales / marketing / …). Same
 // runtime as the cron endpoints but conversational — replies with { ok, answer }.
-export async function askAgent(agentId, messages) {
+// `data` is the current dashboard snapshot; passing it lets the agent quote
+// live numbers without having to hit HubSpot on every message.
+export async function askAgent(agentId, messages, data) {
   const res = await fetch(`${import.meta.env.BASE_URL}api/agent-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agentId, messages }),
+    body: JSON.stringify({ agentId, messages, data }),
   });
   let out = {};
   try { out = await res.json(); } catch {}

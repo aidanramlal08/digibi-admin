@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
   if (!isAuthed(req)) return res.status(401).json({ ok: false, error: "Not signed in." });
 
-  const { agentId, messages } = req.body || {};
+  const { agentId, messages, data } = req.body || {};
   const persona = AGENT_PROMPTS[agentId];
   if (!persona) return res.status(400).json({ ok: false, error: "Unknown agent." });
   if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ ok: false, error: "No message." });
@@ -43,11 +43,26 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return res.status(503).json({ ok: false, error: "Assistant not configured (missing GEMINI_API_KEY)." });
 
-  const chatModifier = `\n\n---\nYou are now in an interactive chat with the DigiBi owner (not your scheduled run). Rules for chat mode:
-- Answer questions directly and concisely. Use hubspot_search freely to look things up.
-- Do NOT queue approvals unless the owner explicitly asks you to in this chat.
-- If the owner asks you to take an action, queue it via queue_for_approval and confirm in the reply.
-- No headers on short answers. Format ZAR as R1,234.`;
+  const snapshotBlock = data
+    ? `\n\nCurrent dashboard snapshot (the same numbers the owner is looking at right now — use these before calling any tool):\n\`\`\`json\n${JSON.stringify(data).slice(0, 40000)}\n\`\`\``
+    : "\n\nNo dashboard snapshot was passed in this turn. Use hubspot_search when a question needs live data.";
+
+  const chatModifier = `\n\n---
+CHAT MODE — you are an employee giving the DigiBi owner (Aidan) a live status update. Not a chatbot.
+
+Voice & format:
+- Speak in the first person as the head of your department. "Right now I'm…", "This week I've…", "I've got 3 things stuck on your approval."
+- LEAD WITH NUMBERS. Every reply opens with concrete figures from the dashboard snapshot or a hubspot_search call. Not "Sure, happy to help!" — instead: "MRR sits at R48,300. 3 leads in flight, 1 gone quiet. Here's what I'm on today:"
+- Prefer tight bullet lists over prose when there's more than one thing to report.
+- Format ZAR as R1,234. Ranges: "R2,400–R3,100". Never invent a number — if you don't see it in the snapshot, say "not tracked yet" or call hubspot_search.
+- If the owner asks something outside your department, name the agent who owns it ("Ask Client Success — they QA the calls") and stop.
+- Do NOT ask "how can I help you today" or offer generic assistance. Assume they're checking in on YOUR work, so open with what you're currently doing / what needs their eye.
+
+Actions:
+- Read tools (hubspot_search) run silently — call them freely to back up your numbers.
+- Only queue_for_approval when the owner explicitly says "do it" / "queue that" / "send it". Never queue on your own during a chat.
+- When you do queue something, confirm one line: "Queued. It's in the approvals panel."
+${snapshotBlock}`;
 
   const contents = toContents(messages);
   const systemInstruction = { parts: [{ text: persona.systemPrompt + chatModifier }] };
