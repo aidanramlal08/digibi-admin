@@ -52,9 +52,14 @@ export default async function handler(req, res) {
       executed_at: new Date().toISOString(),
       result,
     });
+    let successDetail = "";
+    if (!failed && act.name === "send_email" && result) {
+      const rejected = result.rejected || [];
+      successDetail = ` · to ${(result.to || []).join(", ")}${rejected.length ? ` · REJECTED: ${rejected.join(", ")}` : ""} · ${result.response || ""}`;
+    }
     await logEvent({
       agent_id: row.agent_id,
-      msg: failed ? `Execution failed · ${act.name} · ${result.error}`.slice(0, 200) : `Executed · ${act.name}`.slice(0, 200),
+      msg: failed ? `Execution failed · ${act.name} · ${result.error}`.slice(0, 300) : `Executed · ${act.name}${successDetail}`.slice(0, 300),
       level: failed ? "error" : "info",
       agent_run_id: row.agent_run_id,
     });
