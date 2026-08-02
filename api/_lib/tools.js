@@ -15,6 +15,7 @@
 // their env var isn't set — nothing crashes, the agent adapts.
 
 import { createApproval } from "./store.js";
+import { sendMail } from "./mailer.js";
 
 // -------- HubSpot (live if HUBSPOT_TOKEN is set) -----------------------------
 
@@ -47,6 +48,13 @@ async function hubspotUpdateContact({ id, properties }) {
   } catch { return { error: "HubSpot request failed." }; }
 }
 
+// -------- Email (live if SMTP_HOST/SMTP_USER/SMTP_PASS are set) -------------
+
+async function sendEmailTool({ to, subject, body }) {
+  const html = String(body || "").replace(/\n/g, "<br>");
+  return sendMail({ to, subject: subject || "Message from DigiBi", html, text: body });
+}
+
 // -------- Stubs that require credentials the agent doesn't yet have ----------
 // These EXECUTE placeholders — real integrations plug in here later. For now
 // they return a shape that logs what would have happened, so approved actions
@@ -65,7 +73,7 @@ const executors = {
   hubspot_update_contact:      hubspotUpdateContact,
 
   // Comms
-  send_email:                  notConfigured("Email (Resend)",  "RESEND_API_KEY"),
+  send_email:                  sendEmailTool,
   whatsapp_send:               notConfigured("WhatsApp",        "WHATSAPP_TOKEN"),
   slack_post_owner:            notConfigured("Slack",           "SLACK_WEBHOOK_URL"),
 
