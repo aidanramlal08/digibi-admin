@@ -3,7 +3,7 @@
 // by a live conversation instead of a cron kickoff. Read tools execute inline;
 // any write the agent proposes still goes through queue_for_approval.
 import { isAuthed } from "./_auth.js";
-import { AGENT_PROMPTS } from "./_lib/prompts.js";
+import { AGENT_PROMPTS, CONTACT_GUARDRAIL } from "./_lib/prompts.js";
 import { toolDeclarationsFor, runExecutor, handleQueueForApproval } from "./_lib/tools.js";
 import { logEvent } from "./_lib/store.js";
 import crypto from "node:crypto";
@@ -62,6 +62,7 @@ Actions:
 - Read tools (hubspot_search) run silently — call them freely to back up your numbers.
 - Only queue_for_approval when the owner explicitly says "do it" / "queue that" / "send it". Never queue on your own during a chat.
 - When you do queue something, confirm one line: "Queued. It's in the approvals panel."
+${CONTACT_GUARDRAIL}
 ${snapshotBlock}`;
 
   const contents = toContents(messages);

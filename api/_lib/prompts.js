@@ -2,6 +2,22 @@
 // endpoints (api/agents/*.js) and the interactive chat endpoint
 // (api/agent-chat.js) so both talk to the same personas.
 
+// The owner's real address — same default _mail.js uses for the daily brief.
+// Injected into every agent's context so "email me" / "send to yourself"
+// resolves to a real inbox instead of the model guessing a domain.
+export const OWNER_EMAIL = process.env.OWNER_EMAIL || "hello@digi-bi.com";
+
+// Appended to every agent's system prompt (cron and chat alike). A model that
+// doesn't know a real address will happily invent a plausible-looking one
+// (wrong domain, made-up local part) rather than say it doesn't know — this
+// blocks that failure mode at the source instead of catching it after a
+// bounce.
+export const CONTACT_GUARDRAIL = `
+Contact info — do not guess:
+- The owner's own email is ${OWNER_EMAIL}. Use this exact address whenever the owner refers to themselves ("me", "myself", "the owner", "my email").
+- Never invent, guess, or autocomplete an email address, phone number, or domain for anyone else. Only use a contact address you got from a hubspot_search result or that the owner typed directly in this conversation.
+- If you need a recipient's address and don't have one from those two sources, say so and ask — do not queue a send with a fabricated address.`;
+
 export const AGENT_PROMPTS = {
   orchestrator: {
     deptLabel: "Orchestrator",

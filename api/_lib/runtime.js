@@ -7,6 +7,7 @@
 
 import { toolDeclarationsFor, runExecutor, handleQueueForApproval } from "./tools.js";
 import { logEvent } from "./store.js";
+import { CONTACT_GUARDRAIL } from "./prompts.js";
 import crypto from "node:crypto";
 
 const MODEL = process.env.ASSISTANT_MODEL || "gemini-3.1-flash-lite";
@@ -32,7 +33,7 @@ export async function runAgent({ agentId, deptLabel, systemPrompt, kickoff }) {
 
   const contents = [{ role: "user", parts: [{ text: kickoff }] }];
   const tools = [{ functionDeclarations: toolDeclarationsFor(agentId) }];
-  const systemInstruction = { parts: [{ text: systemPrompt }] };
+  const systemInstruction = { parts: [{ text: systemPrompt + CONTACT_GUARDRAIL }] };
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
