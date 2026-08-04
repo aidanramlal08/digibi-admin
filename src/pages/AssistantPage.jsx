@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { C } from "../tokens.js";
 import { askAssistant, getBrief } from "../api.js";
 import { Eyebrow, PageTitle, PageDek, SectionTitle, Button, Notice } from "../ui.jsx";
+import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
 
 // Minimal markdown → HTML for the assistant's replies: bold, bullets, line
 // breaks. Escapes first so model output can't inject markup.
@@ -57,6 +58,56 @@ function Bubble({ role, children }) {
   );
 }
 
+function PaperclipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M11 4.5 5.5 10a2 2 0 1 0 2.83 2.83L14 7.17a3.5 3.5 0 1 0-4.95-4.95L3.5 7.76a5 5 0 1 0 7.07 7.07" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Small chips showing attached files — used both in the pending-send tray
+// and inline inside a sent user bubble.
+function AttachmentChips({ attachments, onRemove, tone }) {
+  if (!attachments || attachments.length === 0) return null;
+  const light = tone === "onAccent";
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: onRemove ? 0 : 8 }}>
+      {attachments.map((a, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 11.5,
+            padding: "3px 8px",
+            borderRadius: 999,
+            background: light ? "rgba(255,255,255,0.18)" : C.sunken,
+            color: light ? "#fff" : C.inkDim,
+            border: light ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${C.line}`,
+            maxWidth: 160,
+          }}
+          title={a.name}
+        >
+          {isImage(a.mimeType) ? "🖼" : "📄"}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+          {onRemove ? (
+            <button
+              type="button"
+              onClick={() => onRemove(i)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, fontSize: 13, lineHeight: 1, opacity: 0.7 }}
+              aria-label={`Remove ${a.name}`}
+            >
+              ×
+            </button>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const SUGGESTIONS = [
   "Which accounts are unprofitable, and why?",
   "What's driving churn this month?",
@@ -71,18 +122,47 @@ export default function AssistantPage({ data }) {
   const [error, setError] = useState("");
   const [brief, setBrief] = useState(null);
   const [briefBusy, setBriefBusy] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState([]);
   const threadRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [messages, busy]);
 
+  const onFilesSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const results = [];
+    for (const f of files) {
+      try {
+        results.push(await readFileAsAttachment(f));
+      } catch (msg) {
+        setError(msg);
+      }
+    }
+    const merged = [...pendingAttachments, ...results];
+    const invalid = validateAttachmentSet(merged);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setPendingAttachments(merged);
+  };
+
+  const removeAttachment = (i) => setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i));
+
   const send = async (text) => {
     const content = (text ?? input).trim();
-    if (!content || busy) return;
+    if ((!content && pendingAttachments.length === 0) || busy) return;
     setError("");
     setInput("");
-    const next = [...messages, { role: "user", content }];
+    const attachments = pendingAttachments;
+    setPendingAttachments([]);
+    const userMsg = { role: "user", content: content || "(see attached file)" };
+    if (attachments.length) userMsg.attachments = attachments;
+    const next = [...messages, userMsg];
     setMessages(next);
     setBusy(true);
     const { ok, data: res } = await askAssistant(next, data);
@@ -174,6 +254,7 @@ export default function AssistantPage({ data }) {
               </Bubble>
             ) : (
               <Bubble key={i} role="user">
+                <AttachmentChips attachments={m.attachments} tone="onAccent" />
                 {m.content}
               </Bubble>
             ),
@@ -182,6 +263,11 @@ export default function AssistantPage({ data }) {
         {busy ? <div style={{ fontSize: 13, color: C.inkFaint, padding: "4px 2px" }}>Thinking…</div> : null}
       </div>
 
+      {pendingAttachments.length > 0 ? (
+        <div style={{ marginBottom: 8 }}>
+          <AttachmentChips attachments={pendingAttachments} onRemove={removeAttachment} />
+        </div>
+      ) : null}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -189,6 +275,25 @@ export default function AssistantPage({ data }) {
         }}
         style={{ display: "flex", gap: 10 }}
       >
+        <input ref={fileInputRef} type="file" multiple accept={ACCEPT_ATTR} onChange={onFilesSelected} style={{ display: "none" }} />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          title="Attach images or PDFs"
+          style={{
+            flexShrink: 0,
+            width: 42,
+            borderRadius: 10,
+            border: `1px solid ${C.lineStrong}`,
+            background: C.paper,
+            color: C.inkDim,
+            cursor: "pointer",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          <PaperclipIcon />
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -205,7 +310,7 @@ export default function AssistantPage({ data }) {
             fontFamily: C.body,
           }}
         />
-        <Button type="submit" disabled={busy || !input.trim()} style={{ width: "auto" }}>
+        <Button type="submit" disabled={busy || (!input.trim() && pendingAttachments.length === 0)} style={{ width: "auto" }}>
           Send
         </Button>
       </form>

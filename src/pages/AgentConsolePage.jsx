@@ -3,6 +3,7 @@ import { C } from "../tokens.js";
 import { Eyebrow, PageTitle, PageDek, SectionTitle } from "../ui.jsx";
 import { AGENTS, AGENT_ACCENT } from "../agents.js";
 import { fetchApprovals, actOnApproval, fetchAgentEvents, askAgent } from "../api.js";
+import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
 
 const DEPT_COLOR = {
   sales: C.accent,
@@ -131,19 +132,81 @@ function AgentDetail({ agent }) {
 }
 
 // Chat panel for the currently-open agent. Manages its own draft input.
+function AttachmentChips({ attachments, onRemove, onAccent }) {
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {attachments.map((a, i) => (
+        <span
+          key={i}
+          title={a.name}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 11,
+            padding: "3px 8px",
+            borderRadius: 999,
+            background: onAccent ? "rgba(255,255,255,0.18)" : C.sunken,
+            color: onAccent ? "#fff" : C.inkDim,
+            border: onAccent ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${C.line}`,
+            maxWidth: 150,
+          }}
+        >
+          {isImage(a.mimeType) ? "🖼" : "📄"}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+          {onRemove ? (
+            <button type="button" onClick={() => onRemove(i)} aria-label={`Remove ${a.name}`} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, fontSize: 13, lineHeight: 1, opacity: 0.7 }}>
+              ×
+            </button>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function AgentChat({ agent, history, onSend, busy, error }) {
   const [draft, setDraft] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [attachError, setAttachError] = useState("");
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history, busy]);
 
+  const onFilesSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setAttachError("");
+    const results = [];
+    for (const f of files) {
+      try {
+        results.push(await readFileAsAttachment(f));
+      } catch (msg) {
+        setAttachError(msg);
+      }
+    }
+    const merged = [...pendingAttachments, ...results];
+    const invalid = validateAttachmentSet(merged);
+    if (invalid) {
+      setAttachError(invalid);
+      return;
+    }
+    setPendingAttachments(merged);
+  };
+
+  const removeAttachment = (i) => setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i));
+
   const submit = (e) => {
     e.preventDefault();
-    if (!draft.trim() || busy) return;
-    onSend(draft.trim());
+    if ((!draft.trim() && pendingAttachments.length === 0) || busy) return;
+    onSend(draft.trim() || "(see attached file)", pendingAttachments);
     setDraft("");
+    setPendingAttachments([]);
   };
 
   return (
@@ -173,6 +236,11 @@ function AgentChat({ agent, history, onSend, busy, error }) {
               whiteSpace: "pre-wrap",
             }}
           >
+            {m.attachments && m.attachments.length ? (
+              <div style={{ marginBottom: 6 }}>
+                <AttachmentChips attachments={m.attachments} onAccent={m.role === "user"} />
+              </div>
+            ) : null}
             {m.content}
           </div>
         ))}
@@ -187,7 +255,26 @@ function AgentChat({ agent, history, onSend, busy, error }) {
           </div>
         ) : null}
       </div>
+      {attachError ? (
+        <div style={{ margin: "0 12px 8px", fontSize: 11.5, color: C.danger }}>{attachError}</div>
+      ) : null}
+      {pendingAttachments.length > 0 ? (
+        <div style={{ margin: "0 12px 8px" }}>
+          <AttachmentChips attachments={pendingAttachments} onRemove={removeAttachment} />
+        </div>
+      ) : null}
       <form onSubmit={submit} style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 6, background: C.paper, borderRadius: "0 0 12px 12px" }}>
+        <input ref={fileInputRef} type="file" multiple accept={ACCEPT_ATTR} onChange={onFilesSelected} style={{ display: "none" }} />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          title="Attach images or PDFs"
+          style={{ flexShrink: 0, width: 36, borderRadius: 7, border: `1px solid ${C.lineStrong}`, background: C.paper, color: C.inkDim, cursor: "pointer", display: "grid", placeItems: "center" }}
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M11 4.5 5.5 10a2 2 0 1 0 2.83 2.83L14 7.17a3.5 3.5 0 1 0-4.95-4.95L3.5 7.76a5 5 0 1 0 7.07 7.07" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -197,8 +284,8 @@ function AgentChat({ agent, history, onSend, busy, error }) {
         />
         <button
           type="submit"
-          disabled={busy || !draft.trim()}
-          style={{ padding: "9px 14px", borderRadius: 7, border: "none", background: busy || !draft.trim() ? C.lineStrong : C.accent, color: "#fff", fontFamily: C.body, fontWeight: 700, fontSize: 12, cursor: busy || !draft.trim() ? "default" : "pointer" }}
+          disabled={busy || (!draft.trim() && pendingAttachments.length === 0)}
+          style={{ padding: "9px 14px", borderRadius: 7, border: "none", background: busy || (!draft.trim() && pendingAttachments.length === 0) ? C.lineStrong : C.accent, color: "#fff", fontFamily: C.body, fontWeight: 700, fontSize: 12, cursor: busy ? "default" : "pointer" }}
         >
           Send
         </button>
@@ -426,10 +513,12 @@ export default function AgentConsolePage({ data }) {
     setChatError("");
   }, []);
 
-  const sendMessage = useCallback(async (text) => {
+  const sendMessage = useCallback(async (text, attachments) => {
     if (!openAgentId) return;
     setChatError("");
-    const nextHistory = [...(chatHistories[openAgentId] || []), { role: "user", content: text }];
+    const userMsg = { role: "user", content: text };
+    if (attachments && attachments.length) userMsg.attachments = attachments;
+    const nextHistory = [...(chatHistories[openAgentId] || []), userMsg];
     setChatHistories((prev) => ({ ...prev, [openAgentId]: nextHistory }));
     setChatBusy(true);
     const res = await askAgent(openAgentId, nextHistory, data);

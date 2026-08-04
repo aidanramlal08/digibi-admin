@@ -18,6 +18,11 @@ export default async function handler(req, res) {
     res.status(400).json({ ok: false, error: "No message." });
     return;
   }
+  const attachmentBytes = messages.reduce((s, m) => s + (m.attachments || []).reduce((t, a) => t + ((a.data || "").length), 0), 0);
+  if (attachmentBytes > 20 * 1024 * 1024) {
+    res.status(400).json({ ok: false, error: "Attachments too large." });
+    return;
+  }
   const result = await runAgent({ messages, dashboardData: data || null });
   res.status(result.ok ? 200 : 503).json(result);
 }

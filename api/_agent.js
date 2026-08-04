@@ -67,14 +67,22 @@ function buildSystem(dashboardData, brief) {
   return lines.join("\n");
 }
 
-// Map our [{role:"user"|"assistant", content}] history to Gemini's contents.
+// Map our [{role, content, attachments?}] history to Gemini's contents.
+// attachments (user turns only) are [{ mimeType, data }] — base64, no data:
+// prefix — and become inlineData parts alongside the text.
 function toContents(messages) {
   return (messages || [])
     .filter((m) => m && (m.role === "user" || m.role === "assistant"))
-    .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: typeof m.content === "string" ? m.content : String(m.content ?? "") }],
-    }))
+    .map((m) => {
+      const parts = [];
+      if (m.role === "user" && Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          if (a && a.mimeType && a.data) parts.push({ inlineData: { mimeType: a.mimeType, data: a.data } });
+        }
+      }
+      parts.push({ text: typeof m.content === "string" ? m.content : String(m.content ?? "") });
+      return { role: m.role === "assistant" ? "model" : "user", parts };
+    })
     .slice(-20);
 }
 

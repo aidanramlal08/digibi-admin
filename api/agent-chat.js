@@ -21,13 +21,21 @@ async function callGemini(apiKey, body) {
   return res.json();
 }
 
+// attachments (user turns only) are [{ mimeType, data }] — base64, no data:
+// prefix — and become inlineData parts alongside the text.
 function toContents(messages) {
   return (messages || [])
     .filter((m) => m && (m.role === "user" || m.role === "assistant"))
-    .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: typeof m.content === "string" ? m.content : String(m.content ?? "") }],
-    }))
+    .map((m) => {
+      const parts = [];
+      if (m.role === "user" && Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          if (a && a.mimeType && a.data) parts.push({ inlineData: { mimeType: a.mimeType, data: a.data } });
+        }
+      }
+      parts.push({ text: typeof m.content === "string" ? m.content : String(m.content ?? "") });
+      return { role: m.role === "assistant" ? "model" : "user", parts };
+    })
     .slice(-20);
 }
 
@@ -39,6 +47,9 @@ export default async function handler(req, res) {
   const persona = AGENT_PROMPTS[agentId];
   if (!persona) return res.status(400).json({ ok: false, error: "Unknown agent." });
   if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ ok: false, error: "No message." });
+
+  const attachmentBytes = messages.reduce((s, m) => s + (m.attachments || []).reduce((t, a) => t + ((a.data || "").length), 0), 0);
+  if (attachmentBytes > 20 * 1024 * 1024) return res.status(400).json({ ok: false, error: "Attachments too large." });
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return res.status(503).json({ ok: false, error: "Assistant not configured (missing GEMINI_API_KEY)." });
