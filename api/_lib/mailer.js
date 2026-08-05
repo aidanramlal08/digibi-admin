@@ -28,6 +28,20 @@ function getTransport() {
 // verdict per recipient and its final response line, since a successful
 // nodemailer send only means the SMTP transaction completed — not that the
 // message wasn't silently rejected or spam-filtered downstream.
+// Checks the SMTP connection is actually reachable and authenticates —
+// doesn't send anything. Used by check_system_health so an agent can tell
+// the difference between "not configured" and "configured but broken."
+export async function verifySmtp() {
+  const transport = getTransport();
+  if (!transport) return { configured: false, ok: false, detail: "SMTP_HOST/SMTP_USER/SMTP_PASS not set" };
+  try {
+    await transport.verify();
+    return { configured: true, ok: true };
+  } catch (err) {
+    return { configured: true, ok: false, detail: String((err && err.message) || err).slice(0, 200) };
+  }
+}
+
 export async function sendMail({ to, subject, html, text }) {
   const transport = getTransport();
   if (!transport) return { skipped: true, reason: "email not configured (need SMTP_HOST, SMTP_USER, SMTP_PASS)" };

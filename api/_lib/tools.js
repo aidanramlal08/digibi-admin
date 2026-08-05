@@ -14,8 +14,8 @@
 // Higgsfield, Slack) return { error: "Tool not configured" } cleanly when
 // their env var isn't set — nothing crashes, the agent adapts.
 
-import { createApproval } from "./store.js";
-import { sendMail } from "./mailer.js";
+import { createApproval, storeConfigured, listEvents } from "./store.js";
+import { sendMail, verifySmtp } from "./mailer.js";
 
 // -------- HubSpot (live if HUBSPOT_TOKEN is set) -----------------------------
 
@@ -55,6 +55,52 @@ async function sendEmailTool({ to, subject, body }) {
   return sendMail({ to, subject: subject || "Message from DigiBi", html, text: body });
 }
 
+// -------- System health (read-only — checks connections, changes nothing) ----
+// Diagnostic only. No tool here can edit code, env vars, or deployments —
+// that stays with the owner's engineer. This just tells the difference
+// between "not configured" and "configured but actually broken" for the
+// pieces the agents themselves depend on, so an agent can report it in
+// plain language instead of the owner having to find it in server logs.
+
+async function checkSystemHealth() {
+  const [smtp] = await Promise.all([verifySmtp()]);
+
+  let hubspot = { configured: !!HS_TOKEN, ok: false };
+  if (HS_TOKEN) {
+    try {
+      const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
+        headers: { Authorization: `Bearer ${HS_TOKEN}` },
+      });
+      hubspot.ok = res.ok;
+      if (!res.ok) hubspot.detail = `HubSpot ${res.status}`;
+    } catch {
+      hubspot.detail = "HubSpot unreachable";
+    }
+  }
+
+  let supabase = { configured: storeConfigured(), ok: false };
+  if (supabase.configured) {
+    const r = await listEvents({ limit: 1 });
+    supabase.ok = r.ok;
+    if (!r.ok) supabase.detail = r.error;
+  }
+
+  const presenceOnly = (envVar) => ({ configured: !!process.env[envVar] });
+
+  return {
+    smtp,
+    hubspot,
+    supabase,
+    gemini: { configured: true, ok: true, detail: "confirmed — this check is running on it" },
+    retell: presenceOnly("RETELL_API_KEY"),
+    paystack: presenceOnly("PAYSTACK_SECRET_KEY"),
+    whatsapp: presenceOnly("WHATSAPP_TOKEN"),
+    meta_ads: presenceOnly("META_ACCESS_TOKEN"),
+    slack: presenceOnly("SLACK_WEBHOOK_URL"),
+    higgsfield: presenceOnly("HIGGSFIELD_API_KEY"),
+  };
+}
+
 // -------- Stubs that require credentials the agent doesn't yet have ----------
 // These EXECUTE placeholders — real integrations plug in here later. For now
 // they return a shape that logs what would have happened, so approved actions
@@ -71,6 +117,7 @@ function notConfigured(name, envVar) {
 const executors = {
   hubspot_search:              hubspotSearch,
   hubspot_update_contact:      hubspotUpdateContact,
+  check_system_health:         checkSystemHealth,
 
   // Comms
   send_email:                  sendEmailTool,
@@ -112,6 +159,12 @@ const declarations = [
       },
       required: ["object_type"],
     },
+  },
+  {
+    name: "check_system_health",
+    description:
+      "Check whether the systems the agents themselves depend on are actually working — SMTP email, HubSpot, Supabase, and whether Retell/Paystack/WhatsApp/Meta Ads/Slack/Higgsfield have credentials configured at all. Read-only, changes nothing. Use this when the owner asks if something is broken, working, or set up, or before telling them an action failed for a systemic reason. This cannot fix anything itself — code, environment variables, and deployments are outside every agent's reach; if something is broken, report exactly what's broken and let the owner (or their engineer) fix it.",
+    parameters: { type: "object", properties: {} },
   },
   {
     name: "queue_for_approval",
