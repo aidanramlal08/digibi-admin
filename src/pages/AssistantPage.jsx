@@ -3,6 +3,9 @@ import { C } from "../tokens.js";
 import { askAssistant, getBrief } from "../api.js";
 import { Eyebrow, PageTitle, PageDek, SectionTitle, Button, Notice } from "../ui.jsx";
 import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
+import { loadJSON, saveJSON, stripAttachmentBytes, MAX_PERSISTED_MESSAGES } from "../persist.js";
+
+const CHAT_STORAGE_KEY = "digibi_assistant_chat";
 
 // Minimal markdown → HTML for the assistant's replies: bold, bullets, line
 // breaks. Escapes first so model output can't inject markup.
@@ -116,7 +119,7 @@ const SUGGESTIONS = [
 ];
 
 export default function AssistantPage({ data }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => loadJSON(CHAT_STORAGE_KEY, []));
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -129,6 +132,10 @@ export default function AssistantPage({ data }) {
   useEffect(() => {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [messages, busy]);
+
+  useEffect(() => {
+    saveJSON(CHAT_STORAGE_KEY, stripAttachmentBytes(messages).slice(-MAX_PERSISTED_MESSAGES));
+  }, [messages]);
 
   const onFilesSelected = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -205,7 +212,18 @@ export default function AssistantPage({ data }) {
         )}
       </div>
 
-      <SectionTitle>Chat</SectionTitle>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <SectionTitle style={{ margin: 0 }}>Chat</SectionTitle>
+        {messages.length > 0 ? (
+          <button
+            onClick={() => setMessages([])}
+            title="Clear this conversation"
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 12.5, fontFamily: C.body, padding: 0 }}
+          >
+            Clear chat
+          </button>
+        ) : null}
+      </div>
       <Notice kind="error">{error}</Notice>
 
       <div

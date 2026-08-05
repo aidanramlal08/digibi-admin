@@ -4,6 +4,9 @@ import { Eyebrow, PageTitle, PageDek, SectionTitle } from "../ui.jsx";
 import { AGENTS, AGENT_ACCENT } from "../agents.js";
 import { fetchApprovals, actOnApproval, fetchAgentEvents, askAgent } from "../api.js";
 import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
+import { loadJSON, saveJSON, stripAttachmentBytes, MAX_PERSISTED_MESSAGES } from "../persist.js";
+
+const CHAT_STORAGE_KEY = "digibi_agent_chats";
 
 const DEPT_COLOR = {
   sales: C.accent,
@@ -295,7 +298,7 @@ function AgentChat({ agent, history, onSend, busy, error }) {
 }
 
 // Full-screen modal — details on the left, chat on the right.
-function AgentDetailModal({ agent, onClose, history, onSend, busy, error }) {
+function AgentDetailModal({ agent, onClose, onClearChat, history, onSend, busy, error }) {
   const accent = AGENT_ACCENT[agent.id];
   return (
     <>
@@ -347,6 +350,15 @@ function AgentDetailModal({ agent, onClose, history, onSend, busy, error }) {
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600 }}>{agent.metricLabel}</div>
             <div style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.ink }}>{agent.metricValue}</div>
           </div>
+          {history.length > 0 ? (
+            <button
+              onClick={() => onClearChat(agent.id)}
+              title="Clear this conversation"
+              style={{ background: "transparent", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: C.body, fontSize: 13, color: C.inkFaint, marginLeft: 4 }}
+            >
+              Clear chat
+            </button>
+          ) : null}
           <button
             onClick={onClose}
             aria-label="Close"
@@ -464,9 +476,17 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
 
 export default function AgentConsolePage({ data }) {
   const [openAgentId, setOpenAgentId] = useState(null);
-  const [chatHistories, setChatHistories] = useState({});
+  const [chatHistories, setChatHistories] = useState(() => loadJSON(CHAT_STORAGE_KEY, {}));
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState("");
+
+  useEffect(() => {
+    const toSave = {};
+    for (const [agentId, history] of Object.entries(chatHistories)) {
+      toSave[agentId] = stripAttachmentBytes(history).slice(-MAX_PERSISTED_MESSAGES);
+    }
+    saveJSON(CHAT_STORAGE_KEY, toSave);
+  }, [chatHistories]);
 
   const [approvals, setApprovals] = useState([]);
   const [events, setEvents] = useState([]);
@@ -584,6 +604,7 @@ export default function AgentConsolePage({ data }) {
         <AgentDetailModal
           agent={openAgent}
           onClose={closeAgentDetail}
+          onClearChat={(agentId) => setChatHistories((prev) => ({ ...prev, [agentId]: [] }))}
           history={chatHistories[openAgent.id] || []}
           onSend={sendMessage}
           busy={chatBusy}
