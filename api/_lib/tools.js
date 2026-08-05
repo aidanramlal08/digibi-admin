@@ -92,6 +92,7 @@ async function checkSystemHealth() {
     hubspot,
     supabase,
     gemini: { configured: true, ok: true, detail: "confirmed — this check is running on it" },
+    cron_secret: { configured: !!process.env.CRON_SECRET, detail: process.env.CRON_SECRET ? undefined : "missing — every scheduled agent run and the daily brief email will silently 401 and never execute" },
     retell: presenceOnly("RETELL_API_KEY"),
     paystack: presenceOnly("PAYSTACK_SECRET_KEY"),
     whatsapp: presenceOnly("WHATSAPP_TOKEN"),

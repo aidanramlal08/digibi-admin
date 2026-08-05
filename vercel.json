@@ -3,12 +3,12 @@
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "crons": [
-    { "path": "/api/brief",               "schedule": "0 6 * * *"  },
-    { "path": "/api/agents/orchestrator", "schedule": "0 5 * * *"  },
-    { "path": "/api/agents/sales",        "schedule": "0 7 * * *"  },
-    { "path": "/api/agents/marketing",    "schedule": "30 7 * * *" },
-    { "path": "/api/agents/success",      "schedule": "0 8 * * *"  },
-    { "path": "/api/agents/finance",      "schedule": "30 8 * * *" },
-    { "path": "/api/agents/content",      "schedule": "0 9 * * *"  }
+    { "path": "/api/agents/orchestrator", "schedule": "0 3 * * *"  },
+    { "path": "/api/brief",               "schedule": "0 4 * * *"  },
+    { "path": "/api/agents/sales",        "schedule": "0 5 * * *"  },
+    { "path": "/api/agents/marketing",    "schedule": "30 5 * * *" },
+    { "path": "/api/agents/success",      "schedule": "0 6 * * *"  },
+    { "path": "/api/agents/finance",      "schedule": "30 6 * * *" },
+    { "path": "/api/agents/content",      "schedule": "0 7 * * *"  }
   ]
 }
