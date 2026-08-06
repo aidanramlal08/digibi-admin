@@ -1,0 +1,138 @@
+{
+  "name": "Immigration Lady - WhatsApp Chatbot",
+  "description": "WhatsApp Cloud trigger -> pause check -> Gemini AI Agent (with Check_Availability + Book_Consultation calendar tools) -> WhatsApp reply, plus a manual-reply/pause form. Separate Immigration Lady client project. Needs: WhatsApp trigger + send credentials + Phone Number ID, Gemini credential, the two HTTP tools pointed at workflow 10's webhooks, and the real knowledge base pasted into the Agent system message (replacing the [PLACEHOLDER] block).",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "nodes": [
+    {
+      "id": "942cabeb-86da-4716-9d4e-bed8d6eb6608",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [0, 112],
+      "parameters": { "updates": ["messages"], "options": {} },
+      "webhookId": "a33d4145-d81c-4056-8770-9979cfc0eaca"
+    },
+    {
+      "id": "a53407aa-5705-478d-ba4d-9fc0de1448a0",
+      "name": "Is Text Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [224, 112],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.messages[0].type }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "text" } ], "combinator": "and" } }
+    },
+    {
+      "id": "50613d11-1e51-4410-af0a-2be205f98039",
+      "name": "Get Conversation State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 112],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "id", "value": "stIIFptFUD4qhkBL" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "phoneNumber", "condition": "eq", "keyValue": "={{ $json.messages[0].from }}" } ] }, "returnAll": false, "limit": 1 },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "234c23c2-d5da-4c90-a614-3bb9c78fccc0",
+      "name": "Is Bot Paused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [672, 112],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.paused === true ? 'true' : 'false' }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "true" } ], "combinator": "and" } }
+    },
+    {
+      "id": "8962ae00-f8ec-4e2e-89fe-529c29133e37",
+      "name": "Immigration Lady Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1024, 112],
+      "parameters": { "promptType": "define", "text": "={{ $('WhatsApp Trigger').item.json[\"messages[0]\"].text.body }}", "options": { "systemMessage": "You are the WhatsApp assistant for Immigration Lady, an immigration services business in South Africa. You answer prospective and existing clients who message the business's WhatsApp line.\n\nHow to respond:\n- Answer using ONLY the knowledge base below. If the knowledge base doesn't cover something, say so plainly and offer to have the office follow up directly - do not guess or invent policies, prices, timelines, or legal conclusions.\n- You are not a lawyer and this is not legal advice. For anything case-specific (eligibility, strategy, deadlines, document review), give general information from the knowledge base if available, then offer to book a consultation.\n- Keep replies short and conversational - this is WhatsApp, not email. A few sentences, not paragraphs.\n- Formatting: WhatsApp supports *bold* and _italic_ (single asterisks/underscores), not markdown headers, tables, or double-star bold. Use plain text and simple line breaks; use short bullet lines with \"-\" if listing a few items.\n- If the person seems distressed, confused, or asks to speak to a human, say you'll pass them along and that the office will follow up personally.\n- Never ask for sensitive documents (passport numbers, ID numbers, immigration case numbers) over chat.\n\nBooking consultations:\n- The office is in the Africa/Johannesburg timezone. Times returned by Check_Availability are already in that zone - read them out as-is, no conversion needed.\n- When a client wants a consultation, call Check_Availability and offer a few of the returned slots by their label. Never make up times yourself.\n- Before calling Book_Consultation, make sure you have the client's name and they've clearly confirmed one specific slot. Use the exact startIso value from Check_Availability's result, not a time you compute yourself.\n- After a successful booking, confirm the date/time back to them in plain language. If booking fails, apologize and say the office will follow up to confirm manually.\n\nKnowledge base:\n[PLACEHOLDER - the real knowledge base content goes here once provided. Until then, if asked anything substantive, say you're still being set up and the office will follow up shortly.]" } }
+    },
+    {
+      "id": "5348e0a1-a0fb-4b67-bc36-7874239577fc",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [896, 336],
+      "parameters": { "modelName": "models/gemini-3.1-flash-lite", "options": {} }
+    },
+    {
+      "id": "86dfbad3-56fa-4893-a0bf-cb559879528f",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [1024, 336],
+      "parameters": { "sessionIdType": "customKey", "sessionKey": "={{ $('WhatsApp Trigger').item.json[\"messages[0]\"].from }}", "contextWindowLength": 10 }
+    },
+    {
+      "id": "dae4a086-7186-4752-af02-6f4519dcc136",
+      "name": "Check_Availability",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [1152, 336],
+      "parameters": { "method": "POST", "url": "https://digibi.app.n8n.cloud/webhook/immigration-lady/availability", "sendBody": true, "contentType": "json", "specifyBody": "keypair", "bodyParameters": { "parameters": [ { "name": "days", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('days', 'How many days ahead to search for open consultation slots. Defaults to 7 if unsure.') }}" } ] }, "options": {} }
+    },
+    {
+      "id": "75264a2d-40bd-48ac-83a0-186eca6cc266",
+      "name": "Book_Consultation",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [1280, 336],
+      "parameters": { "method": "POST", "url": "https://digibi.app.n8n.cloud/webhook/immigration-lady/book", "sendBody": true, "contentType": "json", "specifyBody": "keypair", "bodyParameters": { "parameters": [ { "name": "startDateTime", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('startDateTime', 'The exact startIso value of the slot the client picked, from Check_Availability results.') }}" }, { "name": "clientName", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('clientName', \"The client's full name, as confirmed in the conversation.\") }}" }, { "name": "clientPhone", "value": "={{ $('WhatsApp Trigger').item.json[\"messages[0]\"].from }}" }, { "name": "notes", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('notes', 'Brief context about why they are booking (optional).') }}" } ] }, "options": {} }
+    },
+    {
+      "id": "3e686564-88fd-49ae-b955-fc3b0da5619b",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [1488, 112],
+      "parameters": { "resource": "message", "operation": "send", "phoneNumberId": "REPLACE_ME_WHATSAPP_PHONE_NUMBER_ID", "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json[\"messages[0]\"].from }}", "messageType": "text", "textBody": "={{ $json.output }}", "additionalFields": { "previewUrl": false } },
+      "webhookId": "bc202b7a-f5cc-4fad-8859-981c83b52dc3"
+    },
+    {
+      "id": "de2643c5-b618-461a-851a-aed4e165d04b",
+      "name": "Manual Reply Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 432],
+      "parameters": { "authentication": "basicAuth", "formTitle": "Immigration Lady — Manual Reply", "formDescription": "Send a WhatsApp message yourself, and/or pause the bot for this number so it stops auto-replying.", "formFields": { "values": [ { "fieldLabel": "Client WhatsApp number (with country code, no +)", "fieldName": "phoneNumber", "placeholder": "e.g. 27821234567", "requiredField": true }, { "fieldLabel": "Message to send (leave blank to only change pause status)", "fieldType": "textarea", "fieldName": "message" }, { "fieldLabel": "Pause the bot for this number?", "fieldType": "checkbox", "fieldName": "pauseBot", "fieldOptions": { "values": [ { "option": "Yes, pause the bot (uncheck later to let it reply again)" } ] } } ] }, "options": { "appendAttribution": false, "respondWithOptions": { "values": { "respondWith": "text", "formSubmittedText": "Done — message sent (if provided) and bot status updated." } } } },
+      "webhookId": "9c451fe6-0a6d-4c1c-9eed-fcb0626d0f37"
+    },
+    {
+      "id": "3ec5cc46-3fe1-47c7-96d3-e780c1fc8709",
+      "name": "Update Conversation State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [224, 432],
+      "parameters": { "resource": "row", "operation": "upsert", "dataTableId": { "__rl": true, "mode": "id", "value": "stIIFptFUD4qhkBL" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "phoneNumber", "condition": "eq", "keyValue": "={{ $json.phoneNumber }}" } ] }, "columns": { "mappingMode": "defineBelow", "value": { "phoneNumber": "={{ $json.phoneNumber }}", "paused": "={{ $json.pauseBot && $json.pauseBot.length > 0 }}", "pausedAt": "={{ $now.toISO() }}" } }, "options": {} }
+    },
+    {
+      "id": "e7f8050f-445f-4031-a61e-427ff49b9a07",
+      "name": "Has Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [448, 432],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $('Manual Reply Form').item.json.message ? 'true' : 'false' }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "true" } ], "combinator": "and" } }
+    },
+    {
+      "id": "148b6f3f-c3b1-40e2-b421-750ca022ecf3",
+      "name": "Send Manual Reply",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [672, 432],
+      "parameters": { "resource": "message", "operation": "send", "phoneNumberId": "REPLACE_ME_WHATSAPP_PHONE_NUMBER_ID", "recipientPhoneNumber": "={{ $('Manual Reply Form').item.json.phoneNumber }}", "messageType": "text", "textBody": "={{ $('Manual Reply Form').item.json.message }}", "additionalFields": { "previewUrl": false } },
+      "webhookId": "221456de-ceec-402b-ab69-724ee22339bc"
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": { "main": [[{ "node": "Is Text Message", "type": "main", "index": 0 }]] },
+    "Is Text Message": { "main": [[{ "node": "Get Conversation State", "type": "main", "index": 0 }]] },
+    "Get Conversation State": { "main": [[{ "node": "Is Bot Paused?", "type": "main", "index": 0 }]] },
+    "Is Bot Paused?": { "main": [[], [{ "node": "Immigration Lady Agent", "type": "main", "index": 0 }]] },
+    "Immigration Lady Agent": { "main": [[{ "node": "Send WhatsApp Reply", "type": "main", "index": 0 }]] },
+    "Google Gemini Chat Model": { "ai_languageModel": [[{ "node": "Immigration Lady Agent", "type": "ai_languageModel", "index": 0 }]] },
+    "Conversation Memory": { "ai_memory": [[{ "node": "Immigration Lady Agent", "type": "ai_memory", "index": 0 }]] },
+    "Check_Availability": { "ai_tool": [[{ "node": "Immigration Lady Agent", "type": "ai_tool", "index": 0 }]] },
+    "Book_Consultation": { "ai_tool": [[{ "node": "Immigration Lady Agent", "type": "ai_tool", "index": 0 }]] },
+    "Manual Reply Form": { "main": [[{ "node": "Update Conversation State", "type": "main", "index": 0 }]] },
+    "Update Conversation State": { "main": [[{ "node": "Has Message?", "type": "main", "index": 0 }]] },
+    "Has Message?": { "main": [[{ "node": "Send Manual Reply", "type": "main", "index": 0 }]] }
+  }
+}

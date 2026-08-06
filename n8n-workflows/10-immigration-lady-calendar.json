@@ -1,0 +1,111 @@
+{
+  "name": "Immigration Lady - Calendar Availability & Booking",
+  "description": "Two webhooks for the Immigration Lady WhatsApp bot: check Outlook calendar availability (Mon-Fri 9-5 Africa/Johannesburg) and book a consultation event directly on the calendar. Client project — needs an 'Immigration Lady - Outlook' credential on both Outlook nodes, and her real calendar selected on Create Consultation Event.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "nodes": [
+    {
+      "id": "dca4cd54-1287-4ad3-b308-7d33c1423b9a",
+      "name": "Availability Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 96],
+      "parameters": { "httpMethod": "POST", "path": "immigration-lady/availability", "responseMode": "responseNode", "options": {} },
+      "webhookId": "0d74b721-b9fd-4d18-902b-22a0dde466aa"
+    },
+    {
+      "id": "ef21d982-cdaf-40e5-940d-5260ab217df1",
+      "name": "Compute Search Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 96],
+      "parameters": { "language": "javaScript", "jsCode": "const body = $json.body || $json;\nconst daysAhead = Number(body.days) > 0 ? Number(body.days) : 7;\nconst durationMinutes = Number(body.durationMinutes) > 0 ? Number(body.durationMinutes) : 30;\nconst now = new Date();\nconst rangeEnd = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);\nreturn [{\n  json: {\n    rangeStartIso: now.toISOString(),\n    rangeEndIso: rangeEnd.toISOString(),\n    durationMinutes\n  }\n}];" }
+    },
+    {
+      "id": "b36321bb-d5d9-4650-a687-ae2def6d7d90",
+      "name": "Get Busy Events",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [448, 96],
+      "parameters": { "resource": "event", "operation": "getAll", "authentication": "microsoftOutlookOAuth2Api", "includeRecurringInstances": true, "startDateTime": "={{ $json.rangeStartIso }}", "endDateTime": "={{ $json.rangeEndIso }}", "returnAll": true },
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput",
+      "webhookId": "567910e9-7196-4779-ac2f-26e2c9a0e5e9"
+    },
+    {
+      "id": "164bc66e-f37c-48a1-8c83-ac32e46749b6",
+      "name": "Respond Availability Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [672, 192],
+      "parameters": { "respondWith": "json", "responseBody": "={{ { \"error\": \"Could not check the calendar right now.\", \"slots\": [] } }}", "options": { "responseCode": 200 } }
+    },
+    {
+      "id": "4f28fdda-92ae-45f9-a9d0-b85e0811690c",
+      "name": "Compute Available Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": { "language": "javaScript", "jsCode": "const BUSINESS_TIMEZONE = 'Africa/Johannesburg';\nconst BUSINESS_START_HOUR = 9;\nconst BUSINESS_END_HOUR = 17;\nconst MAX_SLOTS = 8;\nconst STEP_MINUTES = 30;\n\nconst windowData = $('Compute Search Window').first().json;\nconst durationMinutes = windowData.durationMinutes;\nconst rangeStart = new Date(windowData.rangeStartIso);\nconst rangeEnd = new Date(windowData.rangeEndIso);\n\nfunction parseGraphDate(d) {\n  if (!d || !d.dateTime) return null;\n  const iso = d.dateTime.endsWith('Z') ? d.dateTime : d.dateTime + 'Z';\n  return new Date(iso);\n}\n\nconst busyPeriods = $input.all()\n  .map(item => item.json)\n  .filter(ev => ev && ev.start && ev.end)\n  .map(ev => ({ start: parseGraphDate(ev.start), end: parseGraphDate(ev.end) }))\n  .filter(p => p.start && p.end);\n\nfunction zonedParts(date) {\n  const fmt = new Intl.DateTimeFormat('en-US', {\n    timeZone: BUSINESS_TIMEZONE, hour12: false, weekday: 'short', hour: 'numeric', minute: 'numeric'\n  });\n  const map = {};\n  fmt.formatToParts(date).forEach(p => { map[p.type] = p.value; });\n  return { weekday: map.weekday, hour: Number(map.hour), minute: Number(map.minute) };\n}\n\nconst slots = [];\nconst cursor = new Date(rangeStart);\ncursor.setUTCSeconds(0, 0);\n\nwhile (cursor < rangeEnd && slots.length < MAX_SLOTS) {\n  const parts = zonedParts(cursor);\n  const isWeekday = !['Sat', 'Sun'].includes(parts.weekday);\n  const withinHours = parts.hour >= BUSINESS_START_HOUR && parts.hour < BUSINESS_END_HOUR;\n\n  if (isWeekday && withinHours) {\n    const slotEnd = new Date(cursor.getTime() + durationMinutes * 60 * 1000);\n    const overlaps = busyPeriods.some(b => cursor < b.end && slotEnd > b.start);\n    if (!overlaps) {\n      slots.push({\n        startIso: cursor.toISOString(),\n        endIso: slotEnd.toISOString(),\n        label: new Intl.DateTimeFormat('en-ZA', {\n          timeZone: BUSINESS_TIMEZONE, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'\n        }).format(cursor)\n      });\n    }\n  }\n  cursor.setTime(cursor.getTime() + STEP_MINUTES * 60 * 1000);\n}\n\nreturn [{ json: { slots, timezone: BUSINESS_TIMEZONE } }];" }
+    },
+    {
+      "id": "92023c7e-e656-4f19-907d-ef69a4138146",
+      "name": "Respond With Slots",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 0],
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": {} }
+    },
+    {
+      "id": "da2f0b88-6fce-4448-8ff2-e2e43a6b03ce",
+      "name": "Booking Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 512],
+      "parameters": { "httpMethod": "POST", "path": "immigration-lady/book", "responseMode": "responseNode", "options": {} },
+      "webhookId": "547bc302-5b18-4234-9b46-09d92642bd29"
+    },
+    {
+      "id": "12394b6f-3322-4bc8-8476-0f0557a1ed88",
+      "name": "Prepare Booking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 512],
+      "parameters": { "language": "javaScript", "jsCode": "const body = $json.body || $json;\nconst durationMinutes = Number(body.durationMinutes) > 0 ? Number(body.durationMinutes) : 30;\nconst start = new Date(body.startDateTime);\nconst end = new Date(start.getTime() + durationMinutes * 60 * 1000);\nconst clientName = body.clientName || 'Unknown client';\nconst clientPhone = body.clientPhone || 'Unknown number';\nconst notes = body.notes || '';\n\nreturn [{\n  json: {\n    subject: 'Consultation - ' + clientName,\n    startIso: start.toISOString(),\n    endIso: end.toISOString(),\n    description: 'Booked via WhatsApp bot.\\nClient: ' + clientName + '\\nWhatsApp: ' + clientPhone + (notes ? ('\\nNotes: ' + notes) : '')\n  }\n}];" }
+    },
+    {
+      "id": "0c0068a7-110b-44b6-99ae-79c82c241852",
+      "name": "Create Consultation Event",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [448, 512],
+      "parameters": { "resource": "event", "operation": "create", "authentication": "microsoftOutlookOAuth2Api", "calendarId": { "__rl": true, "mode": "list", "value": "", "cachedResultName": "Select calendar in n8n UI" }, "subject": "={{ $json.subject }}", "startDateTime": "={{ $json.startIso }}", "endDateTime": "={{ $json.endIso }}", "additionalFields": { "body": "={{ $json.description }}", "showAs": "busy", "timeZone": "Africa/Johannesburg" } },
+      "onError": "continueErrorOutput",
+      "webhookId": "c0b6809d-8856-42e7-8041-2128773e19af"
+    },
+    {
+      "id": "e4cbf220-760b-4090-a8ea-96d0f455d572",
+      "name": "Respond Booking Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [672, 608],
+      "parameters": { "respondWith": "json", "responseBody": "={{ { \"success\": false, \"error\": \"Could not book that slot. The office will follow up to confirm.\" } }}", "options": { "responseCode": 200 } }
+    },
+    {
+      "id": "1a1aa7ad-e8b2-4b39-ba21-b53f977d6289",
+      "name": "Respond Booking Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [672, 416],
+      "parameters": { "respondWith": "json", "responseBody": "={{ { \"success\": true, \"eventId\": $json.id, \"startIso\": $json.start.dateTime + \"Z\", \"endIso\": $json.end.dateTime + \"Z\" } }}", "options": {} }
+    }
+  ],
+  "connections": {
+    "Availability Request": { "main": [[{ "node": "Compute Search Window", "type": "main", "index": 0 }]] },
+    "Compute Search Window": { "main": [[{ "node": "Get Busy Events", "type": "main", "index": 0 }]] },
+    "Get Busy Events": { "main": [[{ "node": "Compute Available Slots", "type": "main", "index": 0 }], [{ "node": "Respond Availability Error", "type": "main", "index": 0 }]] },
+    "Compute Available Slots": { "main": [[{ "node": "Respond With Slots", "type": "main", "index": 0 }]] },
+    "Booking Request": { "main": [[{ "node": "Prepare Booking", "type": "main", "index": 0 }]] },
+    "Prepare Booking": { "main": [[{ "node": "Create Consultation Event", "type": "main", "index": 0 }]] },
+    "Create Consultation Event": { "main": [[{ "node": "Respond Booking Success", "type": "main", "index": 0 }], [{ "node": "Respond Booking Error", "type": "main", "index": 0 }]] }
+  }
+}
