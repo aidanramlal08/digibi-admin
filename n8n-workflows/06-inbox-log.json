@@ -1,0 +1,51 @@
+{
+  "name": "DigiBi — Inbox Log",
+  "description": "Logs every inbound email (from, subject, snippet, received_at) into the inbox_log data table.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "nodes": [
+    {
+      "parameters": { "options": {} },
+      "id": "d7c27575-5ba7-4403-bcd8-d00b62256f40",
+      "name": "New Email Received",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "notes": "Needs an IMAP credential in this instance."
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nreturn items.map(m => {\n  const fromRaw = m.from || (m.headers && m.headers.from) || '';\n  const from = typeof fromRaw === 'string' ? fromRaw : (fromRaw.text || fromRaw.address || JSON.stringify(fromRaw));\n  const subject = m.subject || '(no subject)';\n  const bodyText = m.textPlain || m.text || '';\n  const snippet = String(bodyText).replace(/s+/g, ' ').trim().slice(0, 200);\n  const receivedAt = m.date ? new Date(m.date).toISOString() : new Date().toISOString();\n  return { json: { received_at: receivedAt, from_address: String(from).slice(0, 250), subject: String(subject).slice(0, 250), snippet } };\n});"
+      },
+      "id": "4a273702-01ab-459e-9b2d-e9c19a0a8b94",
+      "name": "Extract Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "dataTableId": { "__rl": true, "mode": "id", "value": "R7GShSNNaiZmWeJ5", "cachedResultName": "inbox_log" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": { "received_at": "={{ $json.received_at }}", "from_address": "={{ $json.from_address }}", "subject": "={{ $json.subject }}", "snippet": "={{ $json.snippet }}" },
+          "schema": [
+            { "id": "received_at", "displayName": "received_at", "type": "date", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "from_address", "displayName": "from_address", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "subject", "displayName": "subject", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "snippet", "displayName": "snippet", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b027a14-4ce3-45f7-9980-982a7ca08f37",
+      "name": "Insert Inbox Row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 0]
+    }
+  ],
+  "connections": {
+    "New Email Received": { "main": [[{ "node": "Extract Email Data", "type": "main", "index": 0 }]] },
+    "Extract Email Data": { "main": [[{ "node": "Insert Inbox Row", "type": "main", "index": 0 }]] }
+  }
+}

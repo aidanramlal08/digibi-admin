@@ -1,0 +1,169 @@
+{
+  "name": "DigiBi — Web Lead Intake",
+  "description": "Website lead intake: files the lead in HubSpot, classifies intent with Gemini, and dispatches the sales or FAQ Retell agent when a phone number is present.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "web-lead", "options": {} },
+      "id": "5cc3565b-d8cf-4d21-8873-fbf85a9fe01a",
+      "name": "Website Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 96],
+      "webhookId": "f307096b-d0d6-4d53-8754-c15c02611ffa",
+      "notes": "Point the site N8N_LEAD_WEBHOOK_URL (api/lead.js, api/contact.js) at this node PRODUCTION url."
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = ($input.first().json.body) || $input.first().json || {};\nconst type = (b.type || 'web').toString();\nconst email = (b.email || '').toString().trim();\nif (!email) return [];\nlet notes;\nif (type === 'contact-form') notes = 'Website contact form: ' + (b.message || '(no message)');\nelse if (type === 'pricing-guide') notes = 'Downloaded the pricing guide (region: ' + (b.country || 'ZA') + ')';\nelse if (type === 'roi') notes = 'Used the ROI calculator (' + (b.mode || 'savings') + ' mode)';\nelse notes = 'Website enquiry';\nreturn [{ json: {\n  email,\n  first_name: (b.firstName || '').toString().trim(),\n  last_name:  (b.lastName  || '').toString().trim(),\n  phone:      (b.phone     || '').toString().trim(),\n  country:    (b.country   || '').toString().trim(),\n  industry:   (b.business  || '').toString().trim(),\n  how_heard:  (b.hearAbout || 'Website').toString().trim(),\n  notes,\n  source: type,\n  lead_status: 'lead'\n}}];"
+      },
+      "id": "360e2dcf-f4cc-4454-af37-b8909cd4223a",
+      "name": "Normalize Web Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 96],
+      "notes": "Handles contact-form and lead-magnet payloads. Skips anything without an email. Marks every web lead lead_status=lead — NOT auto-dialled."
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": { "companyName": "={{ $json.industry }}", "country": "={{ $json.country }}", "customPropertiesUi": { "customPropertiesValues": [ { "property": "digibi_lead_status", "value": "={{ $json.lead_status }}" }, { "property": "digibi_notes", "value": "={{ $json.notes }}" }, { "property": "digibi_how_heard", "value": "={{ $json.how_heard }}" } ] }, "firstName": "={{ $json.first_name }}", "lastName": "={{ $json.last_name }}", "phoneNumber": "={{ $json.phone }}" },
+        "options": {}
+      },
+      "id": "67cb95da-12f5-4914-a40e-5bc42df0a9b1",
+      "name": "Upsert Web Lead Contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.1,
+      "position": [448, 96],
+      "notes": "Same upsert + digibi_* schema as the Inbound Router."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE_ME_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: ':globe_with_meridians: New website lead (' + $json.source + '): ' + ($json.first_name || $json.email) + ' <' + $json.email + '>' + ($json.notes ? '\\n' + $json.notes : '') }) }}",
+        "options": {}
+      },
+      "id": "e3332afb-67d1-494c-9a38-5353fc045263",
+      "name": "Notify New Web Lead (optional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [736, 0],
+      "disabled": true,
+      "notes": "OPTIONAL, disabled by default. Site already emails a notification; enable only for a Slack ping. Set REPLACE_ME_SLACK_WEBHOOK_URL."
+    },
+    {
+      "parameters": {
+        "modelId": { "__rl": true, "mode": "id", "value": "models/gemini-3.1-flash-lite" },
+        "messages": { "values": [ { "content": "=A new website contact-form submission came in.\nMessage / notes: {{ $('Normalize Web Lead').item.json.notes }}\nBusiness: {{ $('Normalize Web Lead').item.json.industry }}\nHow they heard about us: {{ $('Normalize Web Lead').item.json.how_heard }}\n\nClassify per your instructions. Return ONLY the JSON object." } ] },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": { "systemMessage": "You classify a website contact-form submission for DigiBi (digi-bi.com), which sells AI voice receptionists / AI phone & chat agents to trades and service businesses. Decide the person's intent and output exactly one category:\n- \"lead\": a prospective customer. This is the DEFAULT.\n- \"faq\": ONLY a general informational or support question with no buying intent.\nWhen unsure, choose \"lead\". Respond with ONLY a valid JSON object like {\"category\":\"lead\"}, no markdown fences." }
+      },
+      "id": "6ac10015-1338-43f4-84ce-44b0f106001a",
+      "name": "Classify Enquiry (Gemini)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [672, 192],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const parts = ($json.content && $json.content.parts) || [];\nconst raw = String((parts[0] && parts[0].text) || '').trim();\nlet category = 'lead';\ntry {\n  const cleaned = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();\n  const parsed = JSON.parse(cleaned);\n  if (parsed && (parsed.category === 'lead' || parsed.category === 'faq')) category = parsed.category;\n} catch (e) {}\nreturn [{ json: { output: { category } } }];"
+      },
+      "id": "1900cb8f-8321-4760-8a40-beee6ba101aa",
+      "name": "Parse Enquiry Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1024, 192]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "faq1", "leftValue": "={{ $json.output.category }}", "rightValue": "faq", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" },
+        "options": {}
+      },
+      "id": "8ebaa9e9-41da-48b3-923f-390249c15c0b",
+      "name": "Is FAQ Question?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1248, 192]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 }, "conditions": [ { "id": "fp1", "leftValue": "={{ $('Normalize Web Lead').item.json.phone }}", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } } ], "combinator": "and" },
+        "options": {}
+      },
+      "id": "735eda65-cecb-4995-ad96-6d29bf097e4b",
+      "name": "Has Phone (FAQ)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1472, 96]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/v2/create-phone-call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from_number: 'REPLACE_ME_FAQ_ASSISTANT_FROM_NUMBER', to_number: $('Normalize Web Lead').item.json.phone, override_agent_id: 'REPLACE_ME_FAQ_ASSISTANT_AGENT_ID', retell_llm_dynamic_variables: { first_name: $('Normalize Web Lead').item.json.first_name, last_name: $('Normalize Web Lead').item.json.last_name, email: $('Normalize Web Lead').item.json.email, company: $('Normalize Web Lead').item.json.industry, country: $('Normalize Web Lead').item.json.country, how_heard: $('Normalize Web Lead').item.json.how_heard, enquiry_context: $('Normalize Web Lead').item.json.notes }, metadata: { call_type: 'faq', hubspot_email: $('Normalize Web Lead').item.json.email, first_name: $('Normalize Web Lead').item.json.first_name, last_name: $('Normalize Web Lead').item.json.last_name, phone: $('Normalize Web Lead').item.json.phone, country: $('Normalize Web Lead').item.json.country } }) }}",
+        "options": {}
+      },
+      "id": "d7ef9322-4851-4092-b5d0-9d83970a715a",
+      "name": "Dispatch FAQ Retell Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1696, 96],
+      "onError": "continueRegularOutput",
+      "notes": "FAQ Retell agent for general questions with a phone. Uses the Retell API credential. Set the REPLACE_ME FAQ agent id + from-number in the body."
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $('Upsert Web Lead Contact').item.json.isNew }}", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }, { "id": "c2", "leftValue": "={{ $('Normalize Web Lead').item.json.phone }}", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } } ], "combinator": "and" },
+        "options": {}
+      },
+      "id": "5e7b8b86-f8d2-4fe6-8c90-88f8411e8dd4",
+      "name": "New Lead with Phone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1472, 288]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/v2/create-phone-call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from_number: 'REPLACE_ME_OUTBOUND_FOLLOWUP_FROM_NUMBER', to_number: $('Normalize Web Lead').item.json.phone, override_agent_id: 'REPLACE_ME_OUTBOUND_FOLLOWUP_AGENT_ID', retell_llm_dynamic_variables: { first_name: $('Normalize Web Lead').item.json.first_name, last_name: $('Normalize Web Lead').item.json.last_name, email: $('Normalize Web Lead').item.json.email, company: $('Normalize Web Lead').item.json.industry, country: $('Normalize Web Lead').item.json.country, how_heard: $('Normalize Web Lead').item.json.how_heard, enquiry_context: $('Normalize Web Lead').item.json.notes }, metadata: { call_type: 'lead', hubspot_email: $('Normalize Web Lead').item.json.email, first_name: $('Normalize Web Lead').item.json.first_name, last_name: $('Normalize Web Lead').item.json.last_name, phone: $('Normalize Web Lead').item.json.phone, country: $('Normalize Web Lead').item.json.country } }) }}",
+        "options": {}
+      },
+      "id": "54dbfa18-e02c-4a63-a6ba-63fc1b7b556f",
+      "name": "Dispatch Sales Retell Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1696, 288],
+      "onError": "continueRegularOutput",
+      "notes": "Outbound follow-up Retell agent for brand-new web leads (isNew) with a phone. Uses the Retell API credential. Set the REPLACE_ME agent id + from-number in the body."
+    }
+  ],
+  "connections": {
+    "Website Lead Webhook": { "main": [[{ "node": "Normalize Web Lead", "type": "main", "index": 0 }]] },
+    "Normalize Web Lead": { "main": [[{ "node": "Upsert Web Lead Contact", "type": "main", "index": 0 }]] },
+    "Upsert Web Lead Contact": { "main": [[{ "node": "Notify New Web Lead (optional)", "type": "main", "index": 0 }, { "node": "Classify Enquiry (Gemini)", "type": "main", "index": 0 }]] },
+    "Classify Enquiry (Gemini)": { "main": [[{ "node": "Parse Enquiry Classification", "type": "main", "index": 0 }]] },
+    "Parse Enquiry Classification": { "main": [[{ "node": "Is FAQ Question?", "type": "main", "index": 0 }]] },
+    "Is FAQ Question?": { "main": [[{ "node": "Has Phone (FAQ)?", "type": "main", "index": 0 }], [{ "node": "New Lead with Phone?", "type": "main", "index": 0 }]] },
+    "Has Phone (FAQ)?": { "main": [[{ "node": "Dispatch FAQ Retell Agent", "type": "main", "index": 0 }]] },
+    "New Lead with Phone?": { "main": [[{ "node": "Dispatch Sales Retell Agent", "type": "main", "index": 0 }]] }
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "name": "DigiBi — Consultation Config Capture",
+  "description": "Form to capture a client's AI-agent config during consultation; emails owner + client and saves the config as a task on the HubSpot deal.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "DigiBi — Consultation Config (internal)",
+        "formDescription": "Fill this in during/after your consultation. It saves the agent config as a task on the client deal and emails you a copy.",
+        "formFields": { "values": [
+          { "fieldLabel": "Client email", "fieldType": "email", "placeholder": "Must match the email on their HubSpot deal", "requiredField": true },
+          { "fieldLabel": "Business name", "requiredField": true },
+          { "fieldLabel": "Product", "fieldType": "dropdown", "fieldOptions": { "values": [{ "option": "inbound" }, { "option": "outbound" }, { "option": "chat" }] } },
+          { "fieldLabel": "Tier", "fieldType": "dropdown", "fieldOptions": { "values": [{ "option": "launch" }, { "option": "growth" }, { "option": "business" }, { "option": "enterprise" }] } },
+          { "fieldLabel": "Overage rate per minute (Rand)", "placeholder": "e.g. 1.50" },
+          { "fieldLabel": "How the AI should greet callers", "fieldType": "textarea" },
+          { "fieldLabel": "Business hours", "fieldType": "textarea" },
+          { "fieldLabel": "Services offered", "fieldType": "textarea" },
+          { "fieldLabel": "Booking rules or calendar", "fieldType": "textarea" },
+          { "fieldLabel": "Common questions (FAQs)", "fieldType": "textarea" },
+          { "fieldLabel": "Voice and tone", "fieldType": "dropdown", "fieldOptions": { "values": [{ "option": "Professional" }, { "option": "Friendly and warm" }, { "option": "Energetic" }] } },
+          { "fieldLabel": "Other notes", "fieldType": "textarea" }
+        ] },
+        "options": { "buttonLabel": "Save config", "path": "consultation-config", "respondWithOptions": { "values": { "formSubmittedText": "Saved — config written to the deal and emailed to you." } } }
+      },
+      "id": "99f87bb6-6eb3-4a96-b1c3-79478eb2b9d5",
+      "name": "Consultation Config Capture",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 0],
+      "webhookId": "e90a5de4-62a6-465b-a336-5495639598bc"
+    },
+    {
+      "parameters": {
+        "fromEmail": "hello@digi-bi.com",
+        "toEmail": "hello@digi-bi.com",
+        "subject": "=Consultation config: {{ $('Consultation Config Capture').item.json['Business name'] }}",
+        "html": "=<h3>{{ $('Consultation Config Capture').item.json['Business name'] }} — consultation config</h3><p><strong>Contact:</strong> {{ $('Consultation Config Capture').item.json['Client email'] }}<br><strong>Product/Tier:</strong> {{ $('Consultation Config Capture').item.json['Product'] }} / {{ $('Consultation Config Capture').item.json['Tier'] }}<br><strong>Overage (R/min):</strong> {{ $('Consultation Config Capture').item.json['Overage rate per minute (Rand)'] }}</p><p><strong>Greeting:</strong> {{ $('Consultation Config Capture').item.json['How the AI should greet callers'] }}</p><p><strong>Hours:</strong> {{ $('Consultation Config Capture').item.json['Business hours'] }}</p><p><strong>Services:</strong> {{ $('Consultation Config Capture').item.json['Services offered'] }}</p><p><strong>Booking:</strong> {{ $('Consultation Config Capture').item.json['Booking rules or calendar'] }}</p><p><strong>FAQs:</strong> {{ $('Consultation Config Capture').item.json['Common questions (FAQs)'] }}</p><p><strong>Voice/tone:</strong> {{ $('Consultation Config Capture').item.json['Voice and tone'] }}</p><p><strong>Other:</strong> {{ $('Consultation Config Capture').item.json['Other notes'] }}</p>",
+        "options": { "appendAttribution": false }
+      },
+      "id": "73678dad-f855-4215-baf6-9c08aa06d3df",
+      "name": "Email Config Copy",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [224, 0],
+      "webhookId": "9269c669-7e13-4483-8831-29fb7f0f1972"
+    },
+    {
+      "parameters": {
+        "fromEmail": "hello@digi-bi.com",
+        "toEmail": "={{ $('Consultation Config Capture').item.json['Client email'] }}",
+        "subject": "Please confirm your DigiBi setup details",
+        "html": "={{ '<p>Hi ' + $('Consultation Config Capture').item.json['Business name'] + ',</p><p>Thanks for your consultation! Here is the setup we have noted for your AI receptionist — please check it over:</p><ul><li><strong>Greeting:</strong> ' + $('Consultation Config Capture').item.json['How the AI should greet callers'] + '</li><li><strong>Business hours:</strong> ' + $('Consultation Config Capture').item.json['Business hours'] + '</li><li><strong>Services:</strong> ' + $('Consultation Config Capture').item.json['Services offered'] + '</li><li><strong>Booking:</strong> ' + $('Consultation Config Capture').item.json['Booking rules or calendar'] + '</li><li><strong>Common questions:</strong> ' + $('Consultation Config Capture').item.json['Common questions (FAQs)'] + '</li><li><strong>Voice &amp; tone:</strong> ' + $('Consultation Config Capture').item.json['Voice and tone'] + '</li></ul><p>Is everything correct? If you spot anything to change, or you can think of any other FAQs your customers ask or details you left out, just reply to this email or reach out — we are more than happy to add them.</p><div style=\"margin-top:8px;padding-top:16px;border-top:1px solid #e5e5e5;font-family:Arial,sans-serif;font-size:13px;color:#444;line-height:1.5;\"><img src=\"https://www.digi-bi.com/digibi-logo.png\" alt=\"DigiBi\" style=\"height:40px;width:auto;display:block;margin-bottom:10px;\">Kind regards,<br><br><strong>Aidan Ramlal</strong><br>Founder | DigiBi<br><span style=\"color:#777;\">AI Automation Agency</span><br><br>&#128231; <a href=\"mailto:hello@digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">hello@digi-bi.com</a><br>&#127760; <a href=\"https://www.digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">www.digi-bi.com</a><br>&#128222; +27 69 306 1941<br><br>Instagram: <a href=\"https://instagram.com/digi_bi_\" style=\"color:#2563eb;text-decoration:none;\">@digi_bi_</a><br><br><em>Helping businesses make more money while saving time.</em></div>' }}",
+        "options": { "appendAttribution": false }
+      },
+      "id": "7cf262cc-8d3a-49a9-b16a-f919657b2c47",
+      "name": "Email Config to Client",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [448, 0],
+      "webhookId": "94ccac8c-a35e-4b84-9f7a-de006561476f",
+      "notes": "Sends the captured config to the client to confirm it is correct and invites them to add FAQs."
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "deal",
+        "operation": "search",
+        "limit": 1,
+        "filterGroupsUi": { "filterGroupsValues": [ { "filtersUi": { "filterValues": [ { "propertyName": "digibi_contact_email", "value": "={{ $('Consultation Config Capture').item.json['Client email'] }}" } ] } } ] },
+        "additionalFields": { "properties": ["dealname"] }
+      },
+      "id": "54cca794-87a3-40a7-b375-e7b53d28ddde",
+      "name": "Find Deal by Email",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [672, 0],
+      "alwaysOutputData": true,
+      "notes": "Finds the client deal by digibi_contact_email. If none is found the task step is skipped but you still get the email copy."
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "engagement",
+        "type": "task",
+        "dueDate": "={{ $now.toISO() }}",
+        "metadata": {
+          "body": "=CLIENT CONFIG (from consultation)\n\nBusiness: {{ $('Consultation Config Capture').item.json['Business name'] }}\nContact: {{ $('Consultation Config Capture').item.json['Client email'] }}\nProduct/Tier: {{ $('Consultation Config Capture').item.json['Product'] }} / {{ $('Consultation Config Capture').item.json['Tier'] }}\nOverage (R/min): {{ $('Consultation Config Capture').item.json['Overage rate per minute (Rand)'] }}\n\nGreeting: {{ $('Consultation Config Capture').item.json['How the AI should greet callers'] }}\nHours: {{ $('Consultation Config Capture').item.json['Business hours'] }}\nServices: {{ $('Consultation Config Capture').item.json['Services offered'] }}\nBooking: {{ $('Consultation Config Capture').item.json['Booking rules or calendar'] }}\nFAQs: {{ $('Consultation Config Capture').item.json['Common questions (FAQs)'] }}\nVoice/tone: {{ $('Consultation Config Capture').item.json['Voice and tone'] }}\nOther: {{ $('Consultation Config Capture').item.json['Other notes'] }}",
+          "status": "NOT_STARTED",
+          "subject": "Build AI agent — config from consultation"
+        },
+        "additionalFields": { "associations": { "dealIds": "={{ $('Find Deal by Email').item.json.id }}" } }
+      },
+      "id": "89705a65-084b-48dd-8946-532b9802b2a6",
+      "name": "Save Config Task on Deal",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [896, 0],
+      "onError": "continueRegularOutput",
+      "notes": "Creates a task on the client deal with the full config in the body."
+    }
+  ],
+  "connections": {
+    "Consultation Config Capture": { "main": [[{ "node": "Email Config Copy", "type": "main", "index": 0 }]] },
+    "Email Config Copy": { "main": [[{ "node": "Email Config to Client", "type": "main", "index": 0 }]] },
+    "Email Config to Client": { "main": [[{ "node": "Find Deal by Email", "type": "main", "index": 0 }]] },
+    "Find Deal by Email": { "main": [[{ "node": "Save Config Task on Deal", "type": "main", "index": 0 }]] }
+  }
+}
