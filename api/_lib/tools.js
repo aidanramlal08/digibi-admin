@@ -21,6 +21,16 @@ import { sendMail, verifySmtp } from "./mailer.js";
 
 const HS_TOKEN = process.env.HUBSPOT_TOKEN || "";
 
+// Turns a failed HubSpot response into a legible error. HubSpot's body
+// carries the real reason ("Property values were not valid: ...") — surfacing
+// it means the Activity stream shows WHY a 400 happened, not just "HubSpot 400".
+async function hsError(res) {
+  const raw = (await res.text()).slice(0, 300);
+  let reason = "";
+  try { reason = JSON.parse(raw).message || ""; } catch { /* non-JSON body */ }
+  return { error: `HubSpot ${res.status}${reason ? ` · ${reason.slice(0, 160)}` : ""}`, detail: raw };
+}
+
 async function hubspotSearch({ object_type, query, limit }) {
   if (!HS_TOKEN) return { error: "HubSpot not configured (missing HUBSPOT_TOKEN)." };
   try {
@@ -29,21 +39,50 @@ async function hubspotSearch({ object_type, query, limit }) {
       headers: { Authorization: `Bearer ${HS_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query: (query || "").trim(), limit: Math.min(Math.max(Number(limit) || 10, 1), 25) }),
     });
-    if (!res.ok) return { error: `HubSpot ${res.status}`, detail: (await res.text()).slice(0, 200) };
+    if (!res.ok) return hsError(res);
     const data = await res.json();
     return { count: (data.results || []).length, results: (data.results || []).map((r) => ({ id: r.id, properties: r.properties })) };
   } catch { return { error: "HubSpot request failed." }; }
 }
 
+// Create a NEW contact. This is what "add someone to the CRM" needs — the
+// update tool below only PATCHes an existing record by id, so using it to add
+// a new person fails with a 400/404. If the email already exists HubSpot
+// returns 409 with the existing id, and we upsert (update it) instead of
+// erroring, so "add this person" is safe to call even for someone already there.
+async function hubspotCreateContact({ properties }) {
+  if (!HS_TOKEN) return { error: "HubSpot not configured." };
+  if (!properties || typeof properties !== "object" || Object.keys(properties).length === 0) {
+    return { error: "hubspot_create_contact needs a properties object (at least an email)." };
+  }
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${HS_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties }),
+    });
+    if (res.status === 409) {
+      // Already exists — HubSpot puts the existing record's id in the message.
+      const raw = await res.text();
+      const existingId = (raw.match(/Existing ID:\s*(\d+)/) || [])[1];
+      if (existingId) return hubspotUpdateContact({ id: existingId, properties });
+      return { error: "HubSpot 409 · contact already exists", detail: raw.slice(0, 300) };
+    }
+    if (!res.ok) return hsError(res);
+    return await res.json();
+  } catch { return { error: "HubSpot request failed." }; }
+}
+
 async function hubspotUpdateContact({ id, properties }) {
   if (!HS_TOKEN) return { error: "HubSpot not configured." };
+  if (!id) return { error: "hubspot_update_contact needs the existing contact's id. To ADD a new person use hubspot_create_contact instead." };
   try {
     const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${HS_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties }),
     });
-    if (!res.ok) return { error: `HubSpot ${res.status}`, detail: (await res.text()).slice(0, 200) };
+    if (!res.ok) return hsError(res);
     return await res.json();
   } catch { return { error: "HubSpot request failed." }; }
 }
@@ -117,6 +156,7 @@ function notConfigured(name, envVar) {
 
 const executors = {
   hubspot_search:              hubspotSearch,
+  hubspot_create_contact:      hubspotCreateContact,
   hubspot_update_contact:      hubspotUpdateContact,
   check_system_health:         checkSystemHealth,
 
@@ -170,7 +210,7 @@ const declarations = [
   {
     name: "queue_for_approval",
     description:
-      "Queue an action that requires the owner's approval before it runs. Use this for any write action: sending an email, moving budget, dispatching a call, updating a HubSpot contact, charging a client. Provide clear ctx (context) and rec (one-line recommendation). Returns immediately; the action executes only when the owner approves.",
+      "Queue an action that requires the owner's approval before it runs. Use this for any write action: sending an email, moving budget, dispatching a call, adding a new person to HubSpot (action name hubspot_create_contact), changing an existing HubSpot contact by id (hubspot_update_contact), charging a client. Provide clear ctx (context) and rec (one-line recommendation). Returns immediately; the action executes only when the owner approves.",
     parameters: {
       type: "object",
       properties: {
@@ -181,7 +221,7 @@ const declarations = [
           type: "object",
           description: "The tool call to execute on approval.",
           properties: {
-            name: { type: "string", description: "Executor name: e.g. send_email, meta_update_adset, hubspot_update_contact." },
+            name: { type: "string", description: "Executor name: e.g. send_email, meta_update_adset, hubspot_create_contact (add a new person), hubspot_update_contact (change an existing one by id)." },
             params: { type: "object", description: "Params to pass to the executor." },
           },
           required: ["name"],
