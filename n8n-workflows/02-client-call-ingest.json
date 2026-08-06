@@ -1,0 +1,97 @@
+{
+  "name": "DigiBi — Client Call Ingest",
+  "description": "Ingests every Retell call, matches it to the client deal, and logs it to the calls data table.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "client-call-ingest", "options": {} },
+      "id": "f5bc9769-67b9-48bb-896c-bc72f8dc8874",
+      "name": "Client Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "5fac3d13-7453-4e2f-bf58-810aa6e18e9a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json;\nconst root = b.body || b;\nconst call = root.call || root;\nconst startMs = Number(call.start_timestamp || 0);\nconst endMs = Number(call.end_timestamp || 0);\nlet durMin = 0;\nif (call.duration_ms) durMin = Number(call.duration_ms) / 60000;\nelse if (endMs && startMs) durMin = (endMs - startMs) / 60000;\ndurMin = Math.round(durMin * 10) / 10;\nconst analysis = call.call_analysis || {};\nconst custom = analysis.custom_analysis_data || {};\nconst booked = !!(custom.booked || custom.appointment_booked || custom.booking_confirmed || custom.meeting_booked);\nconst connected = durMin > 0.1;\nconst meta = call.metadata || root.metadata || {};\nconst call_type = String(meta.call_type || custom.call_type || root.event || \"call\");\nconst ts = startMs ? new Date(startMs).toISOString() : new Date().toISOString();\nconst fromNumber = String(call.from_number || root.from_number || \"\");\nconst transcript = String(call.transcript || analysis.transcript || \"\");\nreturn [{ json: {\n  agent_id: String(call.agent_id || meta.agent_id || \"\"),\n  call_id: String(call.call_id || root.call_id || \"\"),\n  ts,\n  duration_min: durMin,\n  call_type,\n  connected,\n  booked,\n  caller_number: fromNumber,\n  disconnection_reason: String(call.disconnection_reason || \"\"),\n  transcript\n} }];"
+      },
+      "id": "1296b833-9804-46d3-8bc8-d18106c167ef",
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "deal",
+        "operation": "search",
+        "limit": 1,
+        "filterGroupsUi": { "filterGroupsValues": [ { "filtersUi": { "filterValues": [ { "propertyName": "digibi_client_agents_id", "operator": "CONTAINS_TOKEN", "value": "={{ $('Extract Call Data').item.json.agent_id }}" } ] } } ] },
+        "additionalFields": {}
+      },
+      "id": "ccc33f89-105b-4a0e-8714-b87197e00dd9",
+      "name": "Resolve Client Deal",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [448, 0],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ex = $(\"Extract Call Data\").item.json;\nconst cur = $json;\nlet client_key = \"\";\nif (cur && cur.id && cur.properties) client_key = String(cur.id);\nelse client_key = \"unmatched:\" + (ex.agent_id || \"unknown\");\nreturn [{ json: {\n  client_key,\n  call_id: ex.call_id,\n  ts: ex.ts,\n  duration_min: ex.duration_min,\n  call_type: ex.call_type,\n  connected: ex.connected,\n  booked: ex.booked,\n  caller_number: ex.caller_number,\n  disconnection_reason: ex.disconnection_reason,\n  transcript: ex.transcript\n} }];"
+      },
+      "id": "9dcd9205-1b07-4eba-a422-899523528600",
+      "name": "Build Call Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0]
+    },
+    {
+      "parameters": {
+        "dataTableId": { "__rl": true, "mode": "id", "value": "PpSYnXA04kFYDCf2", "cachedResultName": "calls" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_key": "={{ $json.client_key }}",
+            "call_id": "={{ $json.call_id }}",
+            "ts": "={{ $json.ts }}",
+            "duration_min": "={{ $json.duration_min }}",
+            "call_type": "={{ $json.call_type }}",
+            "connected": "={{ $json.connected }}",
+            "booked": "={{ $json.booked }}",
+            "caller_number": "={{ $json.caller_number }}",
+            "disconnection_reason": "={{ $json.disconnection_reason }}",
+            "transcript": "={{ $json.transcript }}"
+          },
+          "schema": [
+            { "id": "client_key", "displayName": "client_key", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "call_id", "displayName": "call_id", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "ts", "displayName": "ts", "type": "date", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "duration_min", "displayName": "duration_min", "type": "number", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "call_type", "displayName": "call_type", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "connected", "displayName": "connected", "type": "boolean", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "booked", "displayName": "booked", "type": "boolean", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "caller_number", "displayName": "caller_number", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "disconnection_reason", "displayName": "disconnection_reason", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false },
+            { "id": "transcript", "displayName": "transcript", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "108f01f0-de8b-4e6e-a5ca-68226de5393b",
+      "name": "Store Call",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [896, 0]
+    }
+  ],
+  "connections": {
+    "Client Call Webhook": { "main": [[{ "node": "Extract Call Data", "type": "main", "index": 0 }]] },
+    "Extract Call Data": { "main": [[{ "node": "Resolve Client Deal", "type": "main", "index": 0 }]] },
+    "Resolve Client Deal": { "main": [[{ "node": "Build Call Row", "type": "main", "index": 0 }]] },
+    "Build Call Row": { "main": [[{ "node": "Store Call", "type": "main", "index": 0 }]] }
+  }
+}

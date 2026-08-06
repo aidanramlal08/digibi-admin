@@ -1,0 +1,162 @@
+{
+  "name": "DigiBi — Auto-Provisioning (client → Retell agent + number)",
+  "description": "On Paystack payment success: create Retell agent + number, flip HubSpot contact to client, onboarding task, owner notification. Auth via credentials.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "nodes": [
+    {
+      "id": "cf49b9eb-16b9-44d0-81a7-66a06a77c57e",
+      "name": "Paystack Payment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "paystack-provision", "options": {} },
+      "webhookId": "67494e78-4b9a-4fcd-94f0-3dbac03709e3",
+      "notes": "Point your Paystack charge.success webhook (or the existing Paystack Webhook workflow) at this node PRODUCTION url."
+    },
+    {
+      "id": "51ed3992-2bc3-49ad-95b5-7ff29514ad1f",
+      "name": "Normalize Payment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const b = ($input.first().json.body) || $input.first().json || {};\nconst event = (b.event || '').toString();\nconst d = b.data || {};\nconst cust = d.customer || {};\nconst meta = d.metadata || {};\nconst email = (cust.email || meta.email || '').toString().trim().toLowerCase();\nconst first = (cust.first_name || meta.first_name || '').toString().trim();\nconst last = (cust.last_name || meta.last_name || '').toString().trim();\nconst phone = (cust.phone || meta.phone || '').toString().trim();\nconst plan = (meta.plan || (d.plan && d.plan.name) || '').toString().trim();\nconst amount = Number(d.amount || 0) / 100;\nconst reference = (d.reference || '').toString();\nreturn [{ json: { event, email, first_name: first, last_name: last, phone, plan, amount, reference, go_live_date: new Date().toISOString().slice(0,10) } }];"
+      }
+    },
+    {
+      "id": "50a90cb3-a305-4afe-8e98-0d9f4f75ff45",
+      "name": "Is charge.success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [448, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "evt", "leftValue": "={{ $json.event }}", "rightValue": "charge.success", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "5ba67635-4683-4148-b659-5e3ef1fe6941",
+      "name": "Create Retell Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [672, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/create-agent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ response_engine: { type: 'retell-llm', llm_id: 'REPLACE_ME_RETELL_LLM_ID' }, voice_id: 'REPLACE_ME_VOICE_ID', agent_name: 'DigiBi Receptionist — ' + ($('Normalize Payment').item.json.first_name || $('Normalize Payment').item.json.email) }) }}",
+        "options": {}
+      },
+      "notes": "CONFIRM Retell create-agent endpoint + body against your account. Uses the Retell API credential (Bearer). Set REPLACE_ME_RETELL_LLM_ID / _VOICE_ID in the body.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "44d91f5b-edee-4a7b-a4cf-dae284766f4d",
+      "name": "Provision Phone Number",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [896, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/create-phone-number",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inbound_agent_id: $('Create Retell Agent').item.json.agent_id, outbound_agent_id: $('Create Retell Agent').item.json.agent_id, nickname: 'DigiBi — ' + $('Normalize Payment').item.json.email }) }}",
+        "options": {}
+      },
+      "notes": "CONFIRM: create-phone-number buys US/CA only; for a SA number use import-phone-number (BYOC). Uses the Retell API credential.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "eddd5223-0e67-4698-b55a-4b233a0ee745",
+      "name": "Flip HubSpot Contact to Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1120, 0],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ encodeURIComponent($('Normalize Payment').item.json.email) }}?idProperty=email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { digibi_lead_status: 'client', digibi_go_live_date: $('Normalize Payment').item.json.go_live_date, digibi_plan: $('Normalize Payment').item.json.plan, digibi_retell_agent_id: ($('Create Retell Agent').item.json.agent_id || ''), digibi_retell_number: ($('Provision Phone Number').item.json.phone_number || '') } }) }}",
+        "options": {}
+      },
+      "notes": "Uses the HubSpot Private App credential. May need new properties: digibi_retell_agent_id, digibi_retell_number, digibi_go_live_date, digibi_plan.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "79f5e9fe-52a0-4134-9718-98d1ebf71d54",
+      "name": "Create Onboarding Checklist Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1344, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: 'Go-live checklist — ' + $('Normalize Payment').item.json.email, hs_task_body: 'New client provisioned. Finish: 1) Confirm/port their number to the Retell agent  2) Capture hours, services, pricing  3) Load FAQs + escalation rules  4) Test call + go live.  Plan: ' + $('Normalize Payment').item.json.plan + '  |  Retell agent: ' + ($('Create Retell Agent').item.json.agent_id || 'CHECK') + '  |  Number: ' + ($('Provision Phone Number').item.json.phone_number || 'CHECK'), hs_task_status: 'NOT_STARTED', hs_task_priority: 'HIGH', hs_timestamp: Date.now() } }) }}",
+        "options": {}
+      },
+      "notes": "Creates a HubSpot task = go-live checklist. Uses the HubSpot Private App credential.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "02c5be45-568a-4b11-a257-5153a87aacef",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1568, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE_ME_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: ':tada: New DigiBi client provisioned: ' + $('Normalize Payment').item.json.email + ' (plan: ' + $('Normalize Payment').item.json.plan + '). Retell agent ' + ($('Create Retell Agent').item.json.agent_id || 'CHECK') + ', number ' + ($('Provision Phone Number').item.json.phone_number || 'CHECK') + '. Onboarding task created in HubSpot.' }) }}",
+        "options": {}
+      },
+      "notes": "Slack ping to you. Set REPLACE_ME_SLACK_WEBHOOK_URL, or replace with an Email Send node.",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Paystack Payment Webhook": { "main": [[{ "node": "Normalize Payment", "type": "main", "index": 0 }]] },
+    "Normalize Payment": { "main": [[{ "node": "Is charge.success?", "type": "main", "index": 0 }]] },
+    "Is charge.success?": { "main": [[{ "node": "Create Retell Agent", "type": "main", "index": 0 }]] },
+    "Create Retell Agent": { "main": [[{ "node": "Provision Phone Number", "type": "main", "index": 0 }]] },
+    "Provision Phone Number": { "main": [[{ "node": "Flip HubSpot Contact to Client", "type": "main", "index": 0 }]] },
+    "Flip HubSpot Contact to Client": { "main": [[{ "node": "Create Onboarding Checklist Task", "type": "main", "index": 0 }]] },
+    "Create Onboarding Checklist Task": { "main": [[{ "node": "Notify Owner", "type": "main", "index": 0 }]] }
+  }
+}

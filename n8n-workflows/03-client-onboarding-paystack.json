@@ -1,0 +1,184 @@
+{
+  "name": "DigiBi — Client Onboarding (Paystack)",
+  "description": "Onboards closed-won clients: creates a Paystack subscription checkout (+ optional setup fee) and emails the activation link.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 15 }] } },
+      "id": "224228ff-a22c-4fec-a438-0e30b0764ba5",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 96]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "deal",
+        "operation": "search",
+        "returnAll": true,
+        "filterGroupsUi": { "filterGroupsValues": [ { "filtersUi": { "filterValues": [ { "propertyName": "dealstage", "value": "5698192620" }, { "propertyName": "digibi_paystack_authorization_code", "operator": "NOT_HAS_PROPERTY" }, { "propertyName": "digibi_paystack_checkout_url", "operator": "NOT_HAS_PROPERTY" } ] } } ] },
+        "additionalFields": { "properties": ["dealname", "digibi_contact_email", "digibi_product", "digibi_tier", "digibi_client_agents_id", "digibi_setup_fee_cents"] }
+      },
+      "id": "3237f03c-c804-4aef-8149-df45b67f0906",
+      "name": "Find New Closed-Won Clients",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [224, 96],
+      "notes": "Deals that just closed won and have not started Paystack onboarding. Set digibi_product/digibi_tier manually at close. dealstage 5698192620 = Closed Won."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const PLANS = {\n  inbound_launch:    { code: 'PLN_q0a7dibr1edns9n',   amountZAR: 999,  included: 0 },\n  inbound_growth:    { code: 'PLN_jf0b2c7om382suc',   amountZAR: 1499, included: 300 },\n  inbound_business:  { code: 'PLN_dwbm11ox7e6nu0w', amountZAR: 2499, included: 750 },\n  outbound_launch:   { code: 'PLN_vjg8hnahl37wvz9',  amountZAR: 999,  included: 300 },\n  outbound_growth:   { code: 'PLN_nxnl9u4w6hrnumv',  amountZAR: 1999, included: 600 },\n  outbound_business: { code: 'PLN_pr4vspgrhvzelex', amountZAR: 2999, included: 1000 },\n  chat_launch:       { code: 'PLN_tepb1m83od09au1',      amountZAR: 999,  included: null },\n  chat_growth:       { code: 'PLN_v7nhah7wwoin8v7',      amountZAR: 1999, included: null },\n  chat_business:     { code: 'PLN_uxlctwsjvbphpsk',    amountZAR: 2999, included: null },\n};\nconst dealId = $json.id;\nconst props = $json.properties;\nconst key = props.digibi_product + '_' + props.digibi_tier;\nconst plan = PLANS[key];\nif (!plan) {\n  throw new Error('No Paystack plan mapping for product=' + props.digibi_product + ' tier=' + props.digibi_tier + ' (deal ' + dealId + '). Set digibi_product/digibi_tier on the deal, or add this combo to PLANS.');\n}\nreturn { json: {\n  dealId,\n  email: props.digibi_contact_email,\n  dealname: props.dealname,\n  planCode: plan.code,\n  amountCents: Math.round(plan.amountZAR * 100),\n  includedMinutes: plan.included,\n  setupFeeCents: Number(props.digibi_setup_fee_cents) || 0,\n}};"
+      },
+      "id": "fac14769-7466-42c3-adda-fcd43d26281d",
+      "name": "Resolve Plan Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 96],
+      "notes": "Fill real Paystack plan codes. Enterprise excluded (billed manually). Throws if product/tier not mapped. NOTE: plan codes are account-specific — recreate the plans on the new Paystack account and update these codes."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.paystack.co/transaction/initialize",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  email: $json.email,\n  amount: $json.amountCents,\n  currency: \"ZAR\",\n  plan: $json.planCode,\n  metadata: { hubspot_deal_id: $json.dealId, dealname: $json.dealname }\n}) }}",
+        "options": {}
+      },
+      "id": "0ca78521-d15d-46ae-b537-036faced077c",
+      "name": "Initialize Transaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [672, 96],
+      "notes": "Plan code activates recurring billing; first charge auto-creates the subscription + reusable authorization. Uses the Paystack API credential."
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "sf", "leftValue": "={{ $('Resolve Plan Code').item.json.setupFeeCents }}", "operator": { "type": "number", "operation": "gt" }, "rightValue": 0 } ], "combinator": "and" },
+        "options": {}
+      },
+      "id": "05ac4840-3011-472d-90c5-31dad271338f",
+      "name": "Has Setup Fee?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [896, 96]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.paystack.co/transaction/initialize",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  email: $('Resolve Plan Code').item.json.email,\n  amount: $('Resolve Plan Code').item.json.setupFeeCents,\n  currency: \"ZAR\",\n  metadata: { hubspot_deal_id: $('Resolve Plan Code').item.json.dealId, dealname: $('Resolve Plan Code').item.json.dealname, charge_type: \"setup_fee\" }\n}) }}",
+        "options": {}
+      },
+      "id": "43544abb-923f-4e1b-a130-1361cbc9893b",
+      "name": "Initialize Setup Fee Transaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1120, 0],
+      "notes": "One-time charge, no plan — does not affect the subscription. Tagged charge_type: setup_fee. Uses the Paystack API credential."
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "deal",
+        "operation": "update",
+        "dealId": { "__rl": true, "mode": "id", "value": "={{ $('Resolve Plan Code').item.json.dealId }}" },
+        "updateFields": { "customPropertiesUi": { "customPropertiesValues": [ { "property": "digibi_paystack_reference", "value": "={{ $('Initialize Transaction').item.json.data.reference }}" }, { "property": "digibi_paystack_checkout_url", "value": "={{ $('Initialize Transaction').item.json.data.authorization_url }}" }, { "property": "digibi_onboarding_status", "value": "awaiting_first_payment" } ] } }
+      },
+      "id": "ba85e2f7-9096-40a3-a3af-e59542c50ae1",
+      "name": "Save Onboarding Link to Deal (Setup Fee)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [1344, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hello@digi-bi.com",
+        "toEmail": "={{ $('Resolve Plan Code').item.json.email }}",
+        "subject": "Welcome to DigiBi — settle your setup fee & activate your account",
+        "html": "={{ '<p>Welcome to DigiBi!</p>' + '<p>First, please settle your one-time setup fee of R' + ($('Resolve Plan Code').item.json.setupFeeCents / 100).toFixed(2) + ': ' + '<a href=\"' + $('Initialize Setup Fee Transaction').item.json.data.authorization_url + '\">Pay setup fee</a></p>' + '<p>Then activate your monthly subscription here: ' + '<a href=\"' + $('Initialize Transaction').item.json.data.authorization_url + '\">Activate billing</a> — this securely saves your card for monthly billing.</p>' + '<p>Using everything we covered in your consultation, our team then builds your AI receptionist and gets you live within days.</p>' + '<div style=\"margin-top:8px;padding-top:16px;border-top:1px solid #e5e5e5;font-family:Arial,sans-serif;font-size:13px;color:#444;line-height:1.5;\"><img src=\"https://www.digi-bi.com/digibi-logo.png\" alt=\"DigiBi\" style=\"height:40px;width:auto;display:block;margin-bottom:10px;\">Kind regards,<br><br><strong>Aidan Ramlal</strong><br>Founder | DigiBi<br><span style=\"color:#777;\">AI Automation Agency</span><br><br>&#128231; <a href=\"mailto:hello@digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">hello@digi-bi.com</a><br>&#127760; <a href=\"https://www.digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">www.digi-bi.com</a><br>&#128222; +27 69 306 1941<br><br>Instagram: <a href=\"https://instagram.com/digi_bi_\" style=\"color:#2563eb;text-decoration:none;\">@digi_bi_</a><br><br><em>Helping businesses make more money while saving time.</em></div>' }}",
+        "options": { "appendAttribution": false }
+      },
+      "id": "cf35c067-62ba-403d-97a4-f2d4d7f665d7",
+      "name": "Send Welcome Email (Setup Fee)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1568, 0],
+      "webhookId": "4e1d06ec-984e-46ea-8d17-fb37ae4a0a41"
+    },
+    {
+      "parameters": {
+        "dataTableId": { "__rl": true, "mode": "id", "value": "t2bRfNb2aIumYxlc", "cachedResultName": "emails_log" },
+        "columns": { "mappingMode": "defineBelow", "value": { "sent_at": "={{ $now.toISO() }}", "to_address": "={{ $('Resolve Plan Code').item.json.email }}", "subject": "Welcome to DigiBi — settle your setup fee & activate your account", "email_type": "welcome_setup_fee" }, "schema": [ { "id": "sent_at", "displayName": "sent_at", "type": "date", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "to_address", "displayName": "to_address", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "subject", "displayName": "subject", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "email_type", "displayName": "email_type", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false } ] },
+        "options": {}
+      },
+      "id": "a003f6cc-0070-4199-b8d4-40101b59080e",
+      "name": "Log Sent Email (Setup Fee)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1792, 0]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "deal",
+        "operation": "update",
+        "dealId": { "__rl": true, "mode": "id", "value": "={{ $('Resolve Plan Code').item.json.dealId }}" },
+        "updateFields": { "customPropertiesUi": { "customPropertiesValues": [ { "property": "digibi_paystack_reference", "value": "={{ $json.data.reference }}" }, { "property": "digibi_paystack_checkout_url", "value": "={{ $json.data.authorization_url }}" }, { "property": "digibi_onboarding_status", "value": "awaiting_first_payment" } ] } }
+      },
+      "id": "cf6a3ca5-a8d2-41d8-b114-53456fd14c77",
+      "name": "Save Onboarding Link to Deal (Standard)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [1120, 192]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hello@digi-bi.com",
+        "toEmail": "={{ $('Resolve Plan Code').item.json.email }}",
+        "subject": "Welcome to DigiBi — activate your account",
+        "html": "={{ '<p>Welcome to DigiBi!</p><p>To get started, activate your subscription here:</p><p>' + '<a href=\"' + $('Initialize Transaction').item.json.data.authorization_url + '\">Activate billing</a> — this securely saves your card for monthly billing.</p>' + '<p>Using everything we covered in your consultation, our team then builds your AI receptionist and gets you live within days.</p>' + '<div style=\"margin-top:8px;padding-top:16px;border-top:1px solid #e5e5e5;font-family:Arial,sans-serif;font-size:13px;color:#444;line-height:1.5;\"><img src=\"https://www.digi-bi.com/digibi-logo.png\" alt=\"DigiBi\" style=\"height:40px;width:auto;display:block;margin-bottom:10px;\">Kind regards,<br><br><strong>Aidan Ramlal</strong><br>Founder | DigiBi<br><span style=\"color:#777;\">AI Automation Agency</span><br><br>&#128231; <a href=\"mailto:hello@digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">hello@digi-bi.com</a><br>&#127760; <a href=\"https://www.digi-bi.com\" style=\"color:#2563eb;text-decoration:none;\">www.digi-bi.com</a><br>&#128222; +27 69 306 1941<br><br>Instagram: <a href=\"https://instagram.com/digi_bi_\" style=\"color:#2563eb;text-decoration:none;\">@digi_bi_</a><br><br><em>Helping businesses make more money while saving time.</em></div>' }}",
+        "options": { "appendAttribution": false }
+      },
+      "id": "3abec37e-2052-463c-b99d-98e98eb80e20",
+      "name": "Send Welcome Email (Standard)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1344, 192],
+      "webhookId": "816052ae-2cdf-4f2b-9569-1f3925f9c74f"
+    },
+    {
+      "parameters": {
+        "dataTableId": { "__rl": true, "mode": "id", "value": "t2bRfNb2aIumYxlc", "cachedResultName": "emails_log" },
+        "columns": { "mappingMode": "defineBelow", "value": { "sent_at": "={{ $now.toISO() }}", "to_address": "={{ $('Resolve Plan Code').item.json.email }}", "subject": "Welcome to DigiBi — activate your account", "email_type": "welcome_standard" }, "schema": [ { "id": "sent_at", "displayName": "sent_at", "type": "date", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "to_address", "displayName": "to_address", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "subject", "displayName": "subject", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false }, { "id": "email_type", "displayName": "email_type", "type": "string", "canBeUsedToMatch": false, "display": true, "required": false, "defaultMatch": false } ] },
+        "options": {}
+      },
+      "id": "8839a98a-4678-4fab-9ab9-45faef0b7cab",
+      "name": "Log Sent Email (Standard)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1568, 192]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": { "main": [[{ "node": "Find New Closed-Won Clients", "type": "main", "index": 0 }]] },
+    "Find New Closed-Won Clients": { "main": [[{ "node": "Resolve Plan Code", "type": "main", "index": 0 }]] },
+    "Resolve Plan Code": { "main": [[{ "node": "Initialize Transaction", "type": "main", "index": 0 }]] },
+    "Initialize Transaction": { "main": [[{ "node": "Has Setup Fee?", "type": "main", "index": 0 }]] },
+    "Has Setup Fee?": { "main": [[{ "node": "Initialize Setup Fee Transaction", "type": "main", "index": 0 }], [{ "node": "Save Onboarding Link to Deal (Standard)", "type": "main", "index": 0 }]] },
+    "Initialize Setup Fee Transaction": { "main": [[{ "node": "Save Onboarding Link to Deal (Setup Fee)", "type": "main", "index": 0 }]] },
+    "Save Onboarding Link to Deal (Setup Fee)": { "main": [[{ "node": "Send Welcome Email (Setup Fee)", "type": "main", "index": 0 }]] },
+    "Send Welcome Email (Setup Fee)": { "main": [[{ "node": "Log Sent Email (Setup Fee)", "type": "main", "index": 0 }]] },
+    "Save Onboarding Link to Deal (Standard)": { "main": [[{ "node": "Send Welcome Email (Standard)", "type": "main", "index": 0 }]] },
+    "Send Welcome Email (Standard)": { "main": [[{ "node": "Log Sent Email (Standard)", "type": "main", "index": 0 }]] }
+  }
+}
