@@ -1,0 +1,165 @@
+{
+  "name": "DigiBi — Owner Dashboard API",
+  "description": "Webhook aggregator for the owner admin portal. POST { action: 'overview' } returns the full dashboard payload (pipeline, forecast, churn, tasks, calls, leads, expenses, emails) from HubSpot + n8n data tables; { action: 'add-expense' } inserts a row into the expenses table.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "nodes": [
+    {
+      "id": "9b0f89ef-b707-4fcf-9327-370967efed36",
+      "name": "Admin Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 192],
+      "parameters": { "httpMethod": "POST", "path": "owner-dashboard", "responseMode": "responseNode", "authentication": "none", "options": {} },
+      "webhookId": "fe4443fa-f5ea-48d5-a7f1-f4dc6e04735e"
+    },
+    {
+      "id": "cb29cce9-7406-4229-84ec-3ffad5676ad2",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [224, 176],
+      "parameters": { "rules": { "values": [ { "renameOutput": true, "outputKey": "overview", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "overview" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "add-expense", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "add-expense" } ], "combinator": "and" } } ] }, "options": { "fallbackOutput": "extra", "renameFallbackOutput": "unknown" } }
+    },
+    {
+      "id": "8d803dca-c582-4a0e-a806-dafed11e5cfb",
+      "name": "HubSpot Deals",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [448, 0],
+      "parameters": { "resource": "deal", "operation": "getAll", "authentication": "oAuth2", "returnAll": true, "filters": { "propertiesCollection": { "propertiesValues": { "properties": ["dealname", "amount", "dealstage", "createdate", "email", "product", "tier"], "propertyMode": "valueOnly" } } } },
+      "executeOnce": true
+    },
+    {
+      "id": "c7c09bdf-5c8f-4e60-aec3-0cafe1473372",
+      "name": "HubSpot Contacts",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [672, 0],
+      "parameters": { "resource": "contact", "operation": "getAll", "authentication": "oAuth2", "returnAll": true, "additionalFields": { "propertiesCollection": { "propertiesValues": { "properties": ["hs_analytics_source", "lead_source", "createdate"], "propertyMode": "valueOnly" } } } },
+      "executeOnce": true
+    },
+    {
+      "id": "7cdf88af-b90f-4967-bcd6-525e3571d0f5",
+      "name": "Get Calls",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [896, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "calls" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "30c70abb-1985-48e7-bd9c-42000b502465",
+      "name": "Get Sent Emails",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1120, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "emails_log" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "53e6f0fd-03af-494f-918c-a882a4b88103",
+      "name": "Get Inbox",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1344, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "inbox_log" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "2f8dfce6-1efb-4028-8b7b-dda5ad4110d1",
+      "name": "Get Expenses",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1568, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "expenses" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "06618b1a-4936-4755-9042-76a5d3e437b3",
+      "name": "Get Churn",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1792, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "churn_log" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "d19747dc-23b2-453d-9a09-8a9b01113619",
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [2016, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "tasks" }, "returnAll": true, "options": {} },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "e7ddaf17-5a54-4f0a-af34-6658fa444c9d",
+      "name": "Build Overview",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const toArr = (name) => { try { return $(name).all().map(i => i.json); } catch (e) { return []; } };\nconst num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };\nconst daysAgo = (n) => Date.now() - n * 24 * 3600 * 1000;\nconst tsOf = (v) => { if (v == null || v === '') return NaN; const n = Number(v); if (Number.isFinite(n) && String(v).length >= 10) return n < 1e12 ? n * 1000 : n; return new Date(v).getTime(); };\nconst dealsRaw = toArr('HubSpot Deals');\nconst contactsRaw = toArr('HubSpot Contacts');\nconst calls = toArr('Get Calls');\nconst emailsSent = toArr('Get Sent Emails');\nconst inbox = toArr('Get Inbox');\nconst expensesRaw = toArr('Get Expenses');\nconst churnRaw = toArr('Get Churn');\nconst tasksRaw = toArr('Get Tasks');\nconst dealProp = (d, key) => { const p = d.properties || {}; const v = p[key]; if (v == null) return undefined; return typeof v === 'object' ? v.value : v; };\nconst STAGE_WON = '5698192620';\nconst STAGE_LABELS = { '5698192615': 'In Progress', '5698192620': 'Closed Won' };\nconst STAGE_PROB = { '5698192615': 55, '5698192620': 100 };\nconst deals = dealsRaw.map(d => ({ dealname: dealProp(d, 'dealname') || '(unnamed deal)', email: dealProp(d, 'email') || '', product: dealProp(d, 'product') || '', tier: dealProp(d, 'tier') || '', dealstage: dealProp(d, 'dealstage') || '', amount: num(dealProp(d, 'amount')), createdate: dealProp(d, 'createdate') || '' }));\nconst dealsByCreatedDesc = deals.slice().sort((a, b) => tsOf(b.createdate) - tsOf(a.createdate));\nconst newLeads7d = deals.filter(d => tsOf(d.createdate) >= daysAgo(7)).length;\nconst newLeads30d = deals.filter(d => tsOf(d.createdate) >= daysAgo(30)).length;\nconst byStage = {};\nfor (const d of deals) { const s = d.dealstage || 'unknown'; byStage[s] = (byStage[s] || 0) + 1; }\nconst openDeals = deals.filter(d => d.dealstage && d.dealstage !== STAGE_WON);\nconst pipelineValue = openDeals.reduce((s, d) => s + d.amount, 0);\nconst forecastStageMap = {};\nfor (const d of deals) { if (!d.dealstage) continue; const key = d.dealstage; if (!forecastStageMap[key]) forecastStageMap[key] = { stage: STAGE_LABELS[key] || key, count: 0, valueZAR: 0, probability: STAGE_PROB[key] != null ? STAGE_PROB[key] : 50 }; forecastStageMap[key].count += 1; forecastStageMap[key].valueZAR += d.amount; }\nconst forecastByStage = Object.values(forecastStageMap).map(s => ({ stage: s.stage, count: s.count, valueZAR: s.valueZAR, probability: s.probability, weightedZAR: Math.round(s.valueZAR * s.probability / 100) }));\nconst weightedForecast = forecastByStage.reduce((s, r) => s + r.weightedZAR, 0);\nconst contactProp = (c, key) => { const p = c.properties || {}; const v = p[key]; if (v == null) return undefined; return typeof v === 'object' ? v.value : v; };\nconst contacts = contactsRaw.map(c => ({ source: contactProp(c, 'hs_analytics_source') || contactProp(c, 'lead_source') || 'Unknown', createdate: contactProp(c, 'createdate') || '' }));\nconst sourceMap = {};\nfor (const c of contacts) { sourceMap[c.source] = (sourceMap[c.source] || 0) + 1; }\nconst sources = Object.entries(sourceMap).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);\nconst totalCalls = calls.length;\nconst totalMinutes = Math.round(calls.reduce((s, c) => s + num(c.duration_min), 0));\nconst connected = calls.filter(c => c.connected === true || c.connected === 'true').length;\nconst booked = calls.filter(c => c.booked === true || c.booked === 'true').length;\nconst bookingRate = totalCalls ? Math.round((booked / totalCalls) * 1000) / 10 : 0;\nconst recentCalls = calls.slice().sort((a, b) => tsOf(b.ts) - tsOf(a.ts)).slice(0, 50).map(c => ({ ts: c.ts, client_key: c.client_key, call_type: c.call_type, duration_min: num(c.duration_min), connected: c.connected === true || c.connected === 'true', booked: c.booked === true || c.booked === 'true' }));\nconst now = new Date();\nconst thisMonthKey = now.getFullYear() + '-' + (now.getMonth() + 1);\nconst lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst lastMonthKey = lastMonthDate.getFullYear() + '-' + (lastMonthDate.getMonth() + 1);\nconst monthKeyOf = (d) => { const dt = new Date(d); return dt.getFullYear() + '-' + (dt.getMonth() + 1); };\nconst expenses = expensesRaw.map(e => ({ date: e.date, category: e.category || 'Other', description: e.description || '', amountZAR: num(e.amount_cents) / 100 }));\nconst thisMonthZAR = expenses.filter(e => monthKeyOf(e.date) === thisMonthKey).reduce((s, e) => s + e.amountZAR, 0);\nconst lastMonthZAR = expenses.filter(e => monthKeyOf(e.date) === lastMonthKey).reduce((s, e) => s + e.amountZAR, 0);\nconst expenseCatMap = {};\nfor (const e of expenses.filter(x => monthKeyOf(x.date) === thisMonthKey)) { expenseCatMap[e.category] = (expenseCatMap[e.category] || 0) + e.amountZAR; }\nconst expenseCategories = Object.entries(expenseCatMap).map(([category, amountZAR]) => ({ category, amountZAR }));\nconst recentExpenses = expenses.slice().sort((a, b) => tsOf(b.date) - tsOf(a.date)).slice(0, 50);\nconst churn = churnRaw.map(c => ({ dealname: c.dealname, product: c.product || '', tier: c.tier || '', cancelledAt: c.cancelled_at, reason: c.reason || '', mrrZAR: num(c.mrr_cents) / 100 }));\nconst churn30 = churn.filter(c => tsOf(c.cancelledAt) >= daysAgo(30));\nconst mrrLostZAR = churn30.reduce((s, c) => s + c.mrrZAR, 0);\nconst wonCount = deals.filter(d => d.dealstage === STAGE_WON).length;\nconst churnRateMonthly = wonCount ? Math.round((churn30.length / wonCount) * 1000) / 10 : 0;\nconst recentChurn = churn.slice().sort((a, b) => tsOf(b.cancelledAt) - tsOf(a.cancelledAt)).slice(0, 50);\nconst tasks = tasksRaw.map(t => ({ title: t.title, relatedTo: t.related_to || '', dueDate: t.due_date, priority: t.priority || 'Low', status: t.status || 'open' }));\nconst openTasks = tasks.filter(t => t.status !== 'done');\nconst overdueTasks = openTasks.filter(t => t.status === 'overdue' || (t.dueDate && tsOf(t.dueDate) < Date.now()));\nconst recentTasks = tasks.slice().sort((a, b) => tsOf(a.dueDate) - tsOf(b.dueDate)).slice(0, 50);\nconst startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();\nconst recvRecent = inbox.slice().sort((a, b) => tsOf(b.received_at) - tsOf(a.received_at)).slice(0, 50);\nconst sentByTypeMap = {};\nfor (const e of emailsSent) { const k = e.email_type || 'other'; sentByTypeMap[k] = (sentByTypeMap[k] || 0) + 1; }\nconst sentByType = Object.entries(sentByTypeMap).map(([type, count]) => ({ type, count }));\nconst sentRecent = emailsSent.slice().sort((a, b) => tsOf(b.sent_at) - tsOf(a.sent_at)).slice(0, 50);\nconst data = { payments: { totalRevenueZAR: 0, revenue30dZAR: 0, successCount: 0, failedCount: 0, revenueTrend: [], recentTransactions: [] }, pipeline: { totalDeals: deals.length, newLeads7d, newLeads30d, byStage, recentDeals: dealsByCreatedDesc.slice(0, 50).map(d => ({ dealname: d.dealname, email: d.email, product: d.product, tier: d.tier, dealstage: d.dealstage, createdate: d.createdate })) }, calls: { totalCalls, totalMinutes, connected, booked, bookingRate, recentCalls }, accounts: { mrrZAR: 0, atRisk: [], usage: [] }, leadSources: { totalContacts: contacts.length, new7d: contacts.filter(c => tsOf(c.createdate) >= daysAgo(7)).length, new30d: contacts.filter(c => tsOf(c.createdate) >= daysAgo(30)).length, sources }, expenses: { thisMonthZAR, lastMonthZAR, categories: expenseCategories, recent: recentExpenses }, churn: { churned30d: churn30.length, churnRateMonthly, mrrLostZAR, recent: recentChurn }, tasks: { openCount: openTasks.length, overdueCount: overdueTasks.length, recent: recentTasks }, forecast: { pipelineValueZAR: pipelineValue, weightedForecastZAR: weightedForecast, byStage: forecastByStage, monthlyForecastTrend: [] }, emails: { received: { total: inbox.length, newToday: inbox.filter(e => tsOf(e.received_at) >= startOfToday).length, recent: recvRecent }, sent: { total: emailsSent.length, byType: sentByType, recent: sentRecent } } };\nreturn [{ json: data }];" }
+    },
+    {
+      "id": "3a3694be-f7e2-4305-b47b-44f259bfe4b3",
+      "name": "Respond Overview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [2464, 0],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "6be5b6f2-84dc-4fd6-ad08-309677645525",
+      "name": "Normalize Expense",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 192],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const b = $json.body || $json;\nconst cents = Number(b.amount_cents);\nreturn [{ json: { date: b.date || new Date().toISOString().slice(0, 10), category: (b.category || 'Other').toString(), description: (b.description || '').toString(), amount_cents: Number.isFinite(cents) ? Math.round(cents) : 0 } }];" }
+    },
+    {
+      "id": "32feb85c-5a8d-4b73-9217-c02698a1c526",
+      "name": "Insert Expense",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [672, 192],
+      "parameters": { "resource": "row", "operation": "insert", "dataTableId": { "__rl": true, "mode": "name", "value": "expenses" }, "columns": { "mappingMode": "defineBelow", "value": { "date": "={{ $json.date }}", "category": "={{ $json.category }}", "description": "={{ $json.description }}", "amount_cents": "={{ $json.amount_cents }}" }, "schema": [ { "id": "date", "displayName": "date", "required": false, "defaultMatch": false, "display": true, "type": "dateTime", "canBeUsedToMatch": false }, { "id": "category", "displayName": "category", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }, { "id": "description", "displayName": "description", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }, { "id": "amount_cents", "displayName": "amount_cents", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": false } ] }, "options": {} }
+    },
+    {
+      "id": "a4b43dcf-8490-439e-ae3d-6c61cbaa50bf",
+      "name": "Respond Expense",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 192],
+      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "0ed6172a-ba27-432e-b6a2-5578ab675546",
+      "name": "Respond Unknown",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [448, 384],
+      "parameters": { "respondWith": "json", "responseBody": "={\"error\":\"Unknown action\"}", "options": { "responseCode": 400, "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    }
+  ],
+  "connections": {
+    "Admin Webhook": { "main": [[{ "node": "Route Action", "type": "main", "index": 0 }]] },
+    "Route Action": { "main": [[{ "node": "HubSpot Deals", "type": "main", "index": 0 }], [{ "node": "Normalize Expense", "type": "main", "index": 0 }], [{ "node": "Respond Unknown", "type": "main", "index": 0 }]] },
+    "HubSpot Deals": { "main": [[{ "node": "HubSpot Contacts", "type": "main", "index": 0 }]] },
+    "HubSpot Contacts": { "main": [[{ "node": "Get Calls", "type": "main", "index": 0 }]] },
+    "Get Calls": { "main": [[{ "node": "Get Sent Emails", "type": "main", "index": 0 }]] },
+    "Get Sent Emails": { "main": [[{ "node": "Get Inbox", "type": "main", "index": 0 }]] },
+    "Get Inbox": { "main": [[{ "node": "Get Expenses", "type": "main", "index": 0 }]] },
+    "Get Expenses": { "main": [[{ "node": "Get Churn", "type": "main", "index": 0 }]] },
+    "Get Churn": { "main": [[{ "node": "Get Tasks", "type": "main", "index": 0 }]] },
+    "Get Tasks": { "main": [[{ "node": "Build Overview", "type": "main", "index": 0 }]] },
+    "Build Overview": { "main": [[{ "node": "Respond Overview", "type": "main", "index": 0 }]] },
+    "Normalize Expense": { "main": [[{ "node": "Insert Expense", "type": "main", "index": 0 }]] },
+    "Insert Expense": { "main": [[{ "node": "Respond Expense", "type": "main", "index": 0 }]] }
+  }
+}

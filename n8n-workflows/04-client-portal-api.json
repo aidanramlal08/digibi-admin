@@ -1,0 +1,222 @@
+{
+  "name": "DigiBi — Client Portal API",
+  "description": "Webhook backend for the digibi-portal client login. Single POST endpoint routes by action: get-user/get-user-by-reset/update-password/set-reset (portal_users table), get-calls/get-transcript (calls table), get-account (HubSpot deal via digibi_client_agents_id). Gated by an x-portal-proxy-secret header — SECRET REDACTED below, set + rotate on the new account.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "nodes": [
+    {
+      "id": "79550215-3f1f-4d4f-a701-1e278143e877",
+      "name": "Client Portal Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 672],
+      "parameters": { "httpMethod": "POST", "path": "client-portal", "responseMode": "responseNode", "authentication": "none", "options": {} },
+      "webhookId": "4d8b53dc-d3bd-4666-885a-6b6b0d9959b2"
+    },
+    {
+      "id": "2112d77c-1cf3-47af-9196-9988bc8f5b58",
+      "name": "Check Proxy Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [224, 900],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.headers['x-portal-proxy-secret'] }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "REPLACE_ME_PORTAL_PROXY_SECRET" } ], "combinator": "and" } }
+    },
+    {
+      "id": "cd5954a6-5e6a-4e2c-814d-4a9c6853c975",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [224, 576],
+      "parameters": { "rules": { "values": [ { "renameOutput": true, "outputKey": "get-user", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "get-user" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "get-user-by-reset", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "get-user-by-reset" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "update-password", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "update-password" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "set-reset", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "set-reset" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "get-calls", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "get-calls" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "get-transcript", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "get-transcript" } ], "combinator": "and" } }, { "renameOutput": true, "outputKey": "get-account", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [ { "leftValue": "={{ $json.body.action }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "get-account" } ], "combinator": "and" } } ] }, "options": { "fallbackOutput": "extra", "renameFallbackOutput": "unknown" } }
+    },
+    {
+      "id": "30c27528-e0bf-478a-83fb-50171beb8cf6",
+      "name": "Get User Row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 0],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "portal_users" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "email", "condition": "eq", "keyValue": "={{ $json.body.email }}" } ] }, "returnAll": false, "limit": 1, "options": {} },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "1bf43482-1f07-49fd-8765-c500e42aeb28",
+      "name": "Shape User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const first = $input.first();\nconst row = (first && first.json && first.json.id != null) ? first.json : null;\nreturn [{ json: { user: row } }];" }
+    },
+    {
+      "id": "5b0613b8-c9d4-4db1-84d6-968c3efaf26d",
+      "name": "Respond User",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 0],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "5e88d397-4ec5-426e-8527-4f5c061dac79",
+      "name": "Get User By Reset",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 192],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "portal_users" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "reset_token", "condition": "eq", "keyValue": "={{ $json.body.reset_token }}" } ] }, "returnAll": false, "limit": 1, "options": {} },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "5913fce9-f1ec-4897-9b7b-91133545a607",
+      "name": "Shape User Reset",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 192],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const first = $input.first();\nconst row = (first && first.json && first.json.id != null) ? first.json : null;\nreturn [{ json: { user: row } }];" }
+    },
+    {
+      "id": "956f5f54-c4c4-428c-ba39-93cff4577c2b",
+      "name": "Respond User Reset",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 192],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "ab039127-4dbe-486f-a65d-6526c0e4d09e",
+      "name": "Update Password",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 384],
+      "parameters": { "resource": "row", "operation": "update", "dataTableId": { "__rl": true, "mode": "name", "value": "portal_users" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "email", "condition": "eq", "keyValue": "={{ $json.body.email }}" } ] }, "columns": { "mappingMode": "defineBelow", "value": { "password_hash": "={{ $json.body.password_hash }}", "password_salt": "={{ $json.body.password_salt }}" }, "schema": [ { "id": "password_hash", "displayName": "password_hash", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }, { "id": "password_salt", "displayName": "password_salt", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false } ] }, "options": {} }
+    },
+    {
+      "id": "e89e517f-c37b-487d-831b-5a7ef0bb58ac",
+      "name": "Respond Update Password",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [672, 384],
+      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "cf635fe1-20bc-4eef-9e6e-7567111ae421",
+      "name": "Set Reset Token",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 576],
+      "parameters": { "resource": "row", "operation": "update", "dataTableId": { "__rl": true, "mode": "name", "value": "portal_users" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "email", "condition": "eq", "keyValue": "={{ $json.body.email }}" } ] }, "columns": { "mappingMode": "defineBelow", "value": { "reset_token": "={{ $json.body.reset_token }}", "reset_expires": "={{ $json.body.reset_expires }}" }, "schema": [ { "id": "reset_token", "displayName": "reset_token", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }, { "id": "reset_expires", "displayName": "reset_expires", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": false } ] }, "options": {} }
+    },
+    {
+      "id": "e5e771ac-50cb-4f4e-9b19-b57d7e69826d",
+      "name": "Respond Set Reset",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [672, 576],
+      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "81246b46-5e9a-45ae-b808-63c40e89fa0d",
+      "name": "Get Calls Rows",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 768],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "calls" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "client_key", "condition": "eq", "keyValue": "={{ $json.body.client_key }}" } ] }, "returnAll": true, "options": {} },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "1ac4a0b8-b021-4d64-982a-2d751e162dd5",
+      "name": "Shape Calls",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 768],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const items = $input.all();\nconst rows = items.filter(i => i.json && i.json.id != null).map(i => i.json);\nreturn [{ json: { rows } }];" }
+    },
+    {
+      "id": "7be9fde0-3e9a-470d-bf04-8d4e85fd35f4",
+      "name": "Respond Calls",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 768],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "035b8620-2b7f-4b18-b5e6-f8356bac7206",
+      "name": "Get Transcript Row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 960],
+      "parameters": { "resource": "row", "operation": "get", "dataTableId": { "__rl": true, "mode": "name", "value": "calls" }, "matchType": "allConditions", "filters": { "conditions": [ { "keyName": "call_id", "condition": "eq", "keyValue": "={{ $json.body.call_id }}" }, { "keyName": "client_key", "condition": "eq", "keyValue": "={{ $json.body.client_key }}" } ] }, "returnAll": false, "limit": 1, "options": {} },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "0f831a8b-351c-420e-b459-eb3aa5634e90",
+      "name": "Shape Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 960],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const first = $input.first();\nconst row = (first && first.json && first.json.id != null) ? first.json : null;\nreturn [{ json: { ok: !!row, transcript: row ? (row.transcript || '') : '', call: row } }];" }
+    },
+    {
+      "id": "bfdf48ba-d30a-4251-9268-2121dfc22de5",
+      "name": "Respond Transcript",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 960],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "a48d1b9b-c709-4b0a-9a3c-55199c189825",
+      "name": "Search Deal By Client Key",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [448, 1152],
+      "parameters": { "resource": "deal", "operation": "search", "authentication": "oAuth2", "returnAll": false, "additionalFields": { "limit": 1, "properties": ["dealname", "digibi_contact_email", "digibi_product", "digibi_tier", "digibi_onboarding_status", "digibi_period_minutes_used", "digibi_overage_rate_cents", "digibi_period_started_at", "digibi_balance_due_cents", "digibi_yoco_customer_code", "digibi_client_agents_id"] }, "filterGroupsUi": { "filterGroupsValues": [ { "filtersUi": { "filterValues": [ { "propertyName": "digibi_client_agents_id", "operator": "EQ", "value": "={{ $json.body.client_key }}" } ] } } ] } },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4247f3a8-6e18-4ca2-919f-29dae8331dc4",
+      "name": "Shape Account",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 1152],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const PLANS = {\n  inbound_launch:    { amountZAR: 999,  included: 0 },\n  inbound_growth:    { amountZAR: 1499, included: 300 },\n  inbound_business:  { amountZAR: 2499, included: 750 },\n  outbound_launch:   { amountZAR: 999,  included: 300 },\n  outbound_growth:   { amountZAR: 1999, included: 600 },\n  outbound_business: { amountZAR: 2999, included: 1000 },\n  chat_launch:       { amountZAR: 999,  included: 0 },\n  chat_growth:       { amountZAR: 1999, included: 0 },\n  chat_business:     { amountZAR: 2999, included: 0 },\n};\nconst first = $input.first();\nconst hasDeal = first && first.json && first.json.id != null;\nif (!hasDeal) { return [{ json: { account: {} } }]; }\nconst deal = first.json.properties || {};\nconst product = deal.digibi_product || '';\nconst tier = deal.digibi_tier || '';\nconst plan = PLANS[product + '_' + tier] || { amountZAR: 0, included: 0 };\nconst used = Number(deal.digibi_period_minutes_used) || 0;\nconst included = plan.included || 0;\nconst account = {\n  dealname: deal.dealname || '',\n  email: deal.digibi_contact_email || '',\n  minutes_used: used,\n  included_minutes: included,\n  minutes_remaining: Math.max(0, included - used),\n  period_started_at: deal.digibi_period_started_at ? Number(deal.digibi_period_started_at) : null,\n  overage_rate_zar: (Number(deal.digibi_overage_rate_cents) || 0) / 100,\n  product: product,\n  tier: tier,\n  plan_amount_zar: plan.amountZAR || 0,\n  balance_due_zar: (Number(deal.digibi_balance_due_cents) || 0) / 100,\n  card_saved: !!deal.digibi_yoco_customer_code,\n  onboarding_status: deal.digibi_onboarding_status || '',\n};\nreturn [{ json: { account } }];" }
+    },
+    {
+      "id": "4e33ac0b-9b7a-4116-8f66-d46744e6b310",
+      "name": "Respond Account",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 1152],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "bd813d7f-8fd1-4255-b1a2-ba754a96da90",
+      "name": "Respond Unknown",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [448, 1344],
+      "parameters": { "respondWith": "json", "responseBody": "={\"error\":\"Unknown action\"}", "options": { "responseCode": 400, "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    },
+    {
+      "id": "b628fc7c-388b-471a-987e-487927a083bf",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [448, 1536],
+      "parameters": { "respondWith": "json", "responseBody": "={\"error\":\"Unauthorized\"}", "options": { "responseCode": 401, "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/json; charset=utf-8" } ] } } }
+    }
+  ],
+  "connections": {
+    "Client Portal Webhook": { "main": [[{ "node": "Check Proxy Secret", "type": "main", "index": 0 }]] },
+    "Check Proxy Secret": { "main": [[{ "node": "Route Action", "type": "main", "index": 0 }], [{ "node": "Respond Unauthorized", "type": "main", "index": 0 }]] },
+    "Route Action": { "main": [[{ "node": "Get User Row", "type": "main", "index": 0 }], [{ "node": "Get User By Reset", "type": "main", "index": 0 }], [{ "node": "Update Password", "type": "main", "index": 0 }], [{ "node": "Set Reset Token", "type": "main", "index": 0 }], [{ "node": "Get Calls Rows", "type": "main", "index": 0 }], [{ "node": "Get Transcript Row", "type": "main", "index": 0 }], [{ "node": "Search Deal By Client Key", "type": "main", "index": 0 }], [{ "node": "Respond Unknown", "type": "main", "index": 0 }]] },
+    "Get User Row": { "main": [[{ "node": "Shape User", "type": "main", "index": 0 }]] },
+    "Shape User": { "main": [[{ "node": "Respond User", "type": "main", "index": 0 }]] },
+    "Get User By Reset": { "main": [[{ "node": "Shape User Reset", "type": "main", "index": 0 }]] },
+    "Shape User Reset": { "main": [[{ "node": "Respond User Reset", "type": "main", "index": 0 }]] },
+    "Update Password": { "main": [[{ "node": "Respond Update Password", "type": "main", "index": 0 }]] },
+    "Set Reset Token": { "main": [[{ "node": "Respond Set Reset", "type": "main", "index": 0 }]] },
+    "Get Calls Rows": { "main": [[{ "node": "Shape Calls", "type": "main", "index": 0 }]] },
+    "Shape Calls": { "main": [[{ "node": "Respond Calls", "type": "main", "index": 0 }]] },
+    "Get Transcript Row": { "main": [[{ "node": "Shape Transcript", "type": "main", "index": 0 }]] },
+    "Shape Transcript": { "main": [[{ "node": "Respond Transcript", "type": "main", "index": 0 }]] },
+    "Search Deal By Client Key": { "main": [[{ "node": "Shape Account", "type": "main", "index": 0 }]] },
+    "Shape Account": { "main": [[{ "node": "Respond Account", "type": "main", "index": 0 }]] }
+  }
+}
