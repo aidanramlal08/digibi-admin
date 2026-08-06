@@ -426,7 +426,56 @@ function ActivityStream({ items, notConfigured }) {
   );
 }
 
+// Labelled key/value rows for whatever's inside action.params — every
+// executor takes different params, so this renders generically off
+// whatever keys are present rather than hardcoding a shape per tool.
+const FIELD_LABELS = {
+  to: "To", subject: "Subject", body: "Message", properties: "Fields",
+  id: "Contact ID", adset_id: "Ad set", daily_budget: "New daily budget",
+  status: "Status", client_key: "Client", script: "Script", when_iso: "When",
+  brief: "Brief", aspect: "Aspect ratio", branded: "Branded",
+};
+
+function ActionDetail({ action }) {
+  if (!action || !action.params || Object.keys(action.params).length === 0) {
+    return <div style={{ fontSize: 12, color: C.inkFaint, fontStyle: "italic" }}>No further detail attached to this action.</div>;
+  }
+  const { params } = action;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {Object.entries(params).map(([key, value]) => {
+        const label = FIELD_LABELS[key] || key;
+        const isLong = typeof value === "string" && value.length > 60;
+        const display =
+          value && typeof value === "object"
+            ? Object.entries(value).map(([k, v]) => `${k}: ${v}`).join("\n")
+            : String(value ?? "");
+        return (
+          <div key={key}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, marginBottom: 3 }}>{label}</div>
+            <div
+              style={{
+                fontSize: 12.5,
+                color: C.ink,
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+                background: C.paper,
+                border: `1px solid ${C.line}`,
+                borderRadius: 6,
+                padding: isLong || display.includes("\n") ? "8px 10px" : "5px 9px",
+              }}
+            >
+              {display || "—"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
+  const [expandedId, setExpandedId] = useState(null);
   return (
     <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
@@ -438,7 +487,7 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
       <div style={{ fontSize: 12, color: C.inkDim, margin: "0 0 10px" }}>
         {notConfigured ? "Backend not configured yet." : items.length ? "Approve or reject to close each item." : "Nothing waiting."}
       </div>
-      <div style={{ maxHeight: 200, overflowY: "auto" }}>
+      <div style={{ maxHeight: 340, overflowY: "auto" }}>
         {items.map((a) => {
           const risk = a.risk || "med";
           const dept = a.agent_id;
@@ -446,6 +495,8 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
           const riskColor = risk === "high" ? C.danger : risk === "med" ? C.warn : C.inkDim;
           const riskBg = risk === "high" ? C.dangerWash : risk === "med" ? C.warnWash : C.sunken;
           const busy = busyId === a.id;
+          const expanded = expandedId === a.id;
+          const hasDetail = a.action && a.action.params && Object.keys(a.action.params).length > 0;
           return (
             <div key={a.id} style={{ padding: 10, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, marginBottom: 8, opacity: busy ? 0.6 : 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -458,6 +509,20 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
               </div>
               <div style={{ fontSize: 12, color: C.inkDim, marginBottom: 3 }}>{a.ctx}</div>
               <div style={{ fontSize: 13, color: C.ink, marginBottom: 8, lineHeight: 1.4 }}>{a.rec}</div>
+              {hasDetail ? (
+                <button
+                  onClick={() => setExpandedId(expanded ? null : a.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: C.accent, fontSize: 11.5, fontWeight: 700, fontFamily: C.body, padding: 0, marginBottom: 8 }}
+                >
+                  <span style={{ display: "inline-block", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 100ms" }}>›</span>
+                  {expanded ? "Hide" : "Review"} what {a.action.name === "send_email" ? "will be sent" : "this does"}
+                </button>
+              ) : null}
+              {expanded ? (
+                <div style={{ marginBottom: 10 }}>
+                  <ActionDetail action={a.action} />
+                </div>
+              ) : null}
               <div style={{ display: "flex", gap: 6 }}>
                 <button disabled={busy} onClick={() => onAct(a.id, "approve")} style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: "1px solid transparent", background: C.accent, color: "#fff", fontFamily: C.body }}>
                   {busy ? "…" : "Approve"}
