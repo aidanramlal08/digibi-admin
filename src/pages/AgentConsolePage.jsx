@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { C } from "../tokens.js";
 import { Eyebrow, PageTitle, PageDek, SectionTitle } from "../ui.jsx";
-import { AGENTS, AGENT_ACCENT } from "../agents.js";
+import { AGENTS, AGENT_ACCENT, SUB_AGENTS } from "../agents.js";
 import { fetchApprovals, actOnApproval, fetchAgentEvents, askAgent } from "../api.js";
 import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
 import { loadJSON, saveJSON, stripAttachmentBytes, MAX_PERSISTED_MESSAGES } from "../persist.js";
@@ -68,6 +68,39 @@ function AgentDetail({ agent }) {
   return (
     <div>
       <div style={{ fontFamily: C.display, fontSize: 14, color: C.ink, lineHeight: 1.5, marginBottom: 20 }}>{agent.tagline}</div>
+
+      {SUB_AGENTS[agent.id] && SUB_AGENTS[agent.id].length ? (
+        <>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginBottom: 10 }}>
+            Sub-agents · {SUB_AGENTS[agent.id].length}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 22 }}>
+            {SUB_AGENTS[agent.id].map((s, i) => {
+              const dot = s.status === "warn" ? C.warn : s.status === "idle" ? C.inkFaint : "#10B981";
+              return (
+                <span
+                  key={i}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.ink,
+                    background: C.bg,
+                    border: `1px solid ${C.line}`,
+                    borderRadius: 999,
+                    padding: "5px 11px",
+                  }}
+                >
+                  <i style={{ width: 7, height: 7, borderRadius: 999, background: dot, display: "inline-block" }} />
+                  {s.name}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginBottom: 10 }}>Pipeline</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
@@ -627,7 +660,7 @@ export default function AgentConsolePage({ data }) {
     <div>
       <Eyebrow>Structure OS</Eyebrow>
       <PageTitle>
-        <span style={{ color: C.accent }}>6 agents.</span> 22 workflows. One console.
+        <span style={{ color: C.accent }}>{AGENTS.length} agents.</span> Every department. One console.
       </PageTitle>
       <PageDek>
         Click any agent to see how they work and chat with them live. They can search your CRM, explain what they see, and queue actions for your approval — all without leaving this page.
@@ -641,7 +674,7 @@ export default function AgentConsolePage({ data }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
         {[
-          { label: "Agents live", value: "6", hint: "All departments online", accent: C.ok },
+          { label: "Agents live", value: String(AGENTS.length), hint: "All departments online", accent: C.ok },
           { label: "Pending approvals", value: String(approvals.length), hint: approvals.length ? "Your remaining job" : "Nothing waiting", accent: approvals.length ? C.warn : undefined },
           { label: "Workflows absorbed", value: "22", hint: "Of 22 DigiBi n8n flows" },
           { label: "Actions today", value: String(actionsToday), hint: "Tool calls + executed approvals" },
