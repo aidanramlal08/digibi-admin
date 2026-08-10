@@ -5,20 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DigiBi — Owner Dashboard</title>
     <meta name="description" content="DigiBi internal overview — payments, pipeline and call activity." />
-    <meta name="theme-color" content="#F5F6FB" />
+    <meta name="theme-color" content="#FAFAF8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0C0F14" media="(prefers-color-scheme: dark)" />
     <meta name="robots" content="noindex" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='75%25'%3E%3Cstop offset='0%25' stop-color='%239FC2FF'/%3E%3Cstop offset='45%25' stop-color='%232E6BFF'/%3E%3Cstop offset='100%25' stop-color='%230A1A4A'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='14' fill='url(%23g)'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='75%25'%3E%3Cstop offset='0%25' stop-color='%23F4C64F'/%3E%3Cstop offset='45%25' stop-color='%23B7860B'/%3E%3Cstop offset='100%25' stop-color='%23241905'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='14' fill='url(%23g)'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-      html, body { margin: 0; background: #F5F6FB; }
+      html, body { margin: 0; background: var(--bg, #FAFAF8); }
       * { box-sizing: border-box; }
-      *:focus-visible { outline: 2px solid #2451D6; outline-offset: 1px; }
+      *:focus-visible { outline: 2px solid var(--accent, #B7860B); outline-offset: 1px; }
       @media (max-width: 860px) {
         .app-frame { flex-direction: column; }
-        .app-sidebar { width: 100% !important; height: auto !important; position: static !important; border-right: none !important; border-bottom: 1px solid #E3E7F1; flex-direction: row !important; flex-wrap: wrap; gap: 6px 18px; }
+        .app-sidebar { width: 100% !important; height: auto !important; position: static !important; border-right: none !important; border-bottom: 1px solid var(--line, #E3E5E0); flex-direction: row !important; flex-wrap: wrap; gap: 6px 18px; }
         .app-main { max-width: 100% !important; padding: 24px 18px 50px !important; }
         .grid-2-fallback { grid-template-columns: 1fr !important; }
       }

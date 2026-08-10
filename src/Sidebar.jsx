@@ -60,8 +60,11 @@ export default function Sidebar({ path, go, refreshing, onRefresh, onSignOut, da
       <div style={{ fontFamily: C.display, fontSize: 19, fontWeight: 800, padding: "0 8px", marginBottom: 6, letterSpacing: "-0.01em" }}>
         Digi<span style={{ color: C.accent }}>Bi</span>
       </div>
-      <div style={{ fontSize: 10.5, color: C.inkFaint, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 8px", marginBottom: 26, fontWeight: 600 }}>
-        Owner Dashboard
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 8px", marginBottom: 26 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 99, background: C.ok, flexShrink: 0 }} />
+        <span style={{ fontFamily: C.mono, fontSize: 10, color: C.inkFaint, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
+          Command Deck
+        </span>
       </div>
 
       {NAV_GROUPS.map((g, gi) => (

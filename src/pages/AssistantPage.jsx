@@ -49,7 +49,7 @@ function Bubble({ role, children }) {
           fontSize: 14,
           lineHeight: 1.5,
           background: isUser ? C.accent : C.paper,
-          color: isUser ? "#fff" : C.ink,
+          color: isUser ? C.onAccent : C.ink,
           border: isUser ? "none" : `1px solid ${C.line}`,
           borderTopRightRadius: isUser ? 4 : 12,
           borderTopLeftRadius: isUser ? 12 : 4,
@@ -86,9 +86,9 @@ function AttachmentChips({ attachments, onRemove, tone }) {
             fontSize: 11.5,
             padding: "3px 8px",
             borderRadius: 999,
-            background: light ? "rgba(255,255,255,0.18)" : C.sunken,
-            color: light ? "#fff" : C.inkDim,
-            border: light ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${C.line}`,
+            background: light ? "rgba(26,18,5,0.14)" : C.sunken,
+            color: light ? C.onAccent : C.inkDim,
+            border: light ? "1px solid rgba(26,18,5,0.28)" : `1px solid ${C.line}`,
             maxWidth: 160,
           }}
           title={a.name}

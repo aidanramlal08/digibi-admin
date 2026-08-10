@@ -68,7 +68,7 @@ function ExpenseRow({ onAdded }) {
               borderRadius: 6,
               border: "none",
               background: busy || !date || !category || !amount ? C.lineStrong : C.accent,
-              color: "#fff",
+              color: C.onAccent,
               fontFamily: C.body,
               fontWeight: 700,
               fontSize: 12,

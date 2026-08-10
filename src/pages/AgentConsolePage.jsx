@@ -8,15 +8,6 @@ import { loadJSON, saveJSON, stripAttachmentBytes, MAX_PERSISTED_MESSAGES } from
 
 const CHAT_STORAGE_KEY = "digibi_agent_chats";
 
-const DEPT_COLOR = {
-  sales: C.accent,
-  success: C.ok,
-  finance: C.warn,
-  marketing: "#F472B6",
-  content: "#A78BFA",
-  orchestrator: "#FB923C",
-};
-
 // Compact card for the 3x2 grid. Click opens the full detail modal.
 function AgentCard({ agent, onOpen }) {
   const accent = AGENT_ACCENT[agent.id];
@@ -183,9 +174,9 @@ function AttachmentChips({ attachments, onRemove, onAccent }) {
             fontSize: 11,
             padding: "3px 8px",
             borderRadius: 999,
-            background: onAccent ? "rgba(255,255,255,0.18)" : C.sunken,
-            color: onAccent ? "#fff" : C.inkDim,
-            border: onAccent ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${C.line}`,
+            background: onAccent ? "rgba(26,18,5,0.14)" : C.sunken,
+            color: onAccent ? C.onAccent : C.inkDim,
+            border: onAccent ? "1px solid rgba(26,18,5,0.28)" : `1px solid ${C.line}`,
             maxWidth: 150,
           }}
         >
@@ -263,7 +254,7 @@ function AgentChat({ agent, history, onSend, busy, error }) {
               alignSelf: m.role === "user" ? "flex-end" : "flex-start",
               maxWidth: "88%",
               background: m.role === "user" ? C.accent : C.paper,
-              color: m.role === "user" ? "#fff" : C.ink,
+              color: m.role === "user" ? C.onAccent : C.ink,
               border: m.role === "user" ? "none" : `1px solid ${C.line}`,
               borderRadius: 10,
               padding: "9px 12px",
@@ -286,7 +277,7 @@ function AgentChat({ agent, history, onSend, busy, error }) {
           </div>
         ) : null}
         {error ? (
-          <div style={{ alignSelf: "stretch", background: C.dangerWash, border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "8px 10px", color: C.danger, fontSize: 12 }}>
+          <div style={{ alignSelf: "stretch", background: C.dangerWash, border: `1px solid color-mix(in srgb, ${C.danger} 40%, transparent)`, borderRadius: 8, padding: "8px 10px", color: C.danger, fontSize: 12 }}>
             {error}
           </div>
         ) : null}
@@ -321,7 +312,7 @@ function AgentChat({ agent, history, onSend, busy, error }) {
         <button
           type="submit"
           disabled={busy || (!draft.trim() && pendingAttachments.length === 0)}
-          style={{ padding: "9px 14px", borderRadius: 7, border: "none", background: busy || (!draft.trim() && pendingAttachments.length === 0) ? C.lineStrong : C.accent, color: "#fff", fontFamily: C.body, fontWeight: 700, fontSize: 12, cursor: busy ? "default" : "pointer" }}
+          style={{ padding: "9px 14px", borderRadius: 7, border: "none", background: busy || (!draft.trim() && pendingAttachments.length === 0) ? C.lineStrong : C.accent, color: C.onAccent, fontFamily: C.body, fontWeight: 700, fontSize: 12, cursor: busy ? "default" : "pointer" }}
         >
           Send
         </button>
@@ -449,7 +440,7 @@ function ActivityStream({ items, notConfigured }) {
           items.map((it) => (
             <div key={it.id} style={{ padding: "3px 0", color: C.inkDim, display: "flex", gap: 10 }}>
               <span style={{ color: C.inkFaint, flexShrink: 0 }}>{fmtEventTime(it.ts)}</span>
-              <span style={{ fontWeight: 600, flexShrink: 0, minWidth: 84, color: DEPT_COLOR[it.agent_id] || C.inkDim }}>{it.agent_id}</span>
+              <span style={{ fontWeight: 600, flexShrink: 0, minWidth: 84, color: AGENT_ACCENT[it.agent_id] || C.inkDim }}>{it.agent_id}</span>
               <span style={{ color: it.level === "error" ? C.danger : it.level === "warn" ? C.warn : C.ink }}>{it.msg}</span>
             </div>
           ))
@@ -533,7 +524,7 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
           return (
             <div key={a.id} style={{ padding: 10, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, marginBottom: 8, opacity: busy ? 0.6 : 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span style={{ fontFamily: C.display, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: (DEPT_COLOR[dept] || C.accent) + "22", color: DEPT_COLOR[dept] || C.accent }}>
+                <span style={{ fontFamily: C.display, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: `color-mix(in srgb, ${AGENT_ACCENT[dept] || C.accent} 15%, transparent)`, color: AGENT_ACCENT[dept] || C.accent }}>
                   {deptLabel}
                 </span>
                 <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, letterSpacing: "0.05em", textTransform: "uppercase", background: riskBg, color: riskColor }}>
@@ -557,7 +548,7 @@ function ApprovalsPanel({ items, notConfigured, onAct, busyId }) {
                 </div>
               ) : null}
               <div style={{ display: "flex", gap: 6 }}>
-                <button disabled={busy} onClick={() => onAct(a.id, "approve")} style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: "1px solid transparent", background: C.accent, color: "#fff", fontFamily: C.body }}>
+                <button disabled={busy} onClick={() => onAct(a.id, "approve")} style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: "1px solid transparent", background: C.accent, color: C.onAccent, fontFamily: C.body }}>
                   {busy ? "…" : "Approve"}
                 </button>
                 <button disabled={busy} onClick={() => onAct(a.id, "reject")} style={{ fontSize: 12, padding: "5px 11px", borderRadius: 6, cursor: busy ? "default" : "pointer", border: `1px solid ${C.lineStrong}`, background: C.paper, color: C.inkDim, fontFamily: C.body }}>
@@ -667,7 +658,7 @@ export default function AgentConsolePage({ data }) {
       </PageDek>
 
       {!storeReady ? (
-        <div style={{ background: C.warnWash, border: `1px solid ${C.warn}44`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.ink }}>
+        <div style={{ background: C.warnWash, border: `1px solid color-mix(in srgb, ${C.warn} 40%, transparent)`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.ink }}>
           <strong style={{ color: C.warn }}>Backend not connected.</strong> Set <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>SUPABASE_URL</code> and <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>SUPABASE_SERVICE_KEY</code> on Vercel and run <code style={{ background: C.sunken, padding: "1px 5px", borderRadius: 4 }}>db/schema.sql</code> in your Supabase to activate approvals + event history.
         </div>
       ) : null}

@@ -47,7 +47,7 @@ export function Field({ label, type = "text", value, onChange, autoComplete, pla
 
 export function Button({ children, disabled, variant = "primary", onClick, type = "button", style }) {
   const variants = {
-    primary: { background: disabled ? "#8FA5E8" : C.accent, color: "#fff", border: "1px solid transparent" },
+    primary: { background: disabled ? C.lineStrong : C.accent, color: C.onAccent, border: "1px solid transparent" },
     ghost: { background: "transparent", color: C.ink, border: `1px solid ${C.lineStrong}` },
     subtle: { background: C.paper, color: C.ink, border: `1px solid ${C.lineStrong}` },
   };
@@ -195,7 +195,7 @@ export function RangeControl({ value, onChange, options = [7, 30, 90] }) {
             fontSize: 12.5,
             fontWeight: 700,
             background: n === value ? C.accent : C.paper,
-            color: n === value ? "#fff" : C.inkDim,
+            color: n === value ? C.onAccent : C.inkDim,
             border: "none",
             borderRight: i < options.length - 1 ? `1px solid ${C.lineStrong}` : "none",
             cursor: "pointer",
@@ -367,20 +367,254 @@ export function AttentionList({ items }) {
 }
 
 // Horizontal distribution bars for a small set of labelled counts (e.g. QA
-// score 1–5). Bar length is share of the max; count sits at the end.
-export function DistributionBars({ items, colorFor }) {
+// score 1–5, or spend by category). Bar length is share of the max; the
+// value sits at the end — pass formatValue to render it as currency etc.
+export function DistributionBars({ items, colorFor, formatValue, labelWidth = 64 }) {
   const max = Math.max(...items.map((i) => i.count), 1);
+  const fmt = formatValue || ((v) => v);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
       {items.map((it) => (
         <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 64, fontSize: 12, color: C.inkDim, fontWeight: 600, flexShrink: 0 }}>{it.label}</div>
+          <div style={{ width: labelWidth, fontSize: 12, color: C.inkDim, fontWeight: 600, flexShrink: 0 }}>{it.label}</div>
           <div style={{ flex: 1, background: C.sunken, borderRadius: 6, height: 22, position: "relative", overflow: "hidden" }}>
             <div style={{ width: `${(it.count / max) * 100}%`, height: "100%", background: colorFor ? colorFor(it) : C.accent, borderRadius: 6, minWidth: it.count > 0 ? 2 : 0 }} />
           </div>
-          <div style={{ width: 40, textAlign: "right", fontSize: 12.5, color: C.ink, fontWeight: 700, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{it.count}</div>
+          <div style={{ minWidth: 40, textAlign: "right", fontSize: 12.5, color: C.ink, fontWeight: 700, fontFamily: C.mono, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{fmt(it.count)}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Tiny inline trend line for a KPI tile — no axes, just shape + an
+// emphasized endpoint, per the dataviz guidance for sparklines.
+export function Sparkline({ values, color, width = 72, height = 24 }) {
+  if (!values || values.length < 2) return <svg width={width} height={height} aria-hidden="true" />;
+  const mn = Math.min(...values);
+  const mx = Math.max(...values);
+  const span = mx - mn || 1;
+  const pts = values.map((v, i) => [
+    (i / (values.length - 1)) * width,
+    height - 2 - ((v - mn) / span) * (height - 4),
+  ]);
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fill="none" aria-hidden="true">
+      <path d={d} stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last[0].toFixed(1)} cy={last[1].toFixed(1)} r="2.2" fill={color} />
+    </svg>
+  );
+}
+
+// A single KPI tile: label, big tabular-num value, an up/down/flat delta
+// chip, and an optional sparkline. `deltaPct` omitted or null renders a flat
+// "—" instead of a fabricated comparison — never invent a trend.
+export function MetricTile({ label, value, deltaPct, goodDirection = "up", sparkValues, sparkColor, accent }) {
+  const hasDelta = deltaPct != null && Number.isFinite(deltaPct);
+  const hasSpark = sparkValues && sparkValues.length > 1;
+  const flat = hasDelta && Math.abs(deltaPct) < 0.05;
+  const up = hasDelta && deltaPct > 0;
+  const isGood = hasDelta && !flat && (goodDirection === "up" ? up : !up);
+  const deltaColor = flat ? C.inkFaint : isGood ? C.ok : C.danger;
+  const arrow = flat ? "■" : up ? "▲" : "▼";
+  return (
+    <div
+      style={{
+        background: accent ? `linear-gradient(160deg, ${C.accentWash}, transparent 70%)` : C.paper,
+        border: `1px solid ${C.line}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}
+    >
+      <div style={{ fontFamily: C.mono, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontFamily: C.mono, fontVariantNumeric: "tabular-nums", fontWeight: 650, fontSize: 24, letterSpacing: "-0.01em", marginTop: 7, lineHeight: 1, color: C.ink }}>{value}</div>
+      {hasDelta || hasSpark ? (
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginTop: 8, minHeight: 24 }}>
+          {hasDelta ? (
+            <span style={{ fontFamily: C.mono, fontSize: 11.5, fontWeight: 650, color: deltaColor, display: "inline-flex", alignItems: "center", gap: 3 }}>
+              {arrow} {Math.abs(deltaPct).toFixed(1)}%
+            </span>
+          ) : <span />}
+          {hasSpark ? <Sparkline values={sparkValues} color={sparkColor || C.accent} /> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Grouped monthly bars for two paired series (income/expense-shaped data).
+// `data` = [{ label, a, b }]. Colors default to the validated income/expense
+// pair. Hover shows both values + the net for that month.
+export function MonthlyBarChart({ data, colorA = C.income, colorB = C.expense, nameA = "A", nameB = "B", formatValue = (v) => v, height = 200 }) {
+  const [hoverIdx, setHoverIdx] = useState(null);
+  if (!data || data.length === 0) {
+    return <div style={{ fontSize: 13, color: C.inkFaint, padding: "18px 4px" }}>No data yet.</div>;
+  }
+  const width = 480;
+  const padding = { top: 14, right: 8, bottom: 22, left: 8 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+  const maxV = Math.max(...data.flatMap((d) => [d.a, d.b]), 1) * 1.12;
+  const groupW = innerW / data.length;
+  const barW = Math.max(6, groupW * 0.32);
+  const y = (v) => padding.top + innerH - (v / maxV) * innerH;
+  const hovered = hoverIdx != null ? data[hoverIdx] : null;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 8, fontSize: 11.5, color: C.inkDim }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 9, height: 9, borderRadius: 2, background: colorA, display: "inline-block" }} />{nameA}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 9, height: 9, borderRadius: 2, background: colorB, display: "inline-block" }} />{nameB}</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height, display: "block", overflow: "visible" }}>
+        <line x1={padding.left} y1={padding.top + innerH} x2={width - padding.right} y2={padding.top + innerH} stroke={C.line} strokeWidth="1" />
+        {data.map((d, i) => {
+          const gx = padding.left + i * groupW;
+          const ha = (d.a / maxV) * innerH;
+          const hb = (d.b / maxV) * innerH;
+          const isHovered = hoverIdx === i;
+          return (
+            <g key={i}>
+              <rect
+                x={gx + groupW / 2 - barW - 1}
+                y={y(d.a)}
+                width={barW}
+                height={Math.max(1, ha)}
+                rx="3"
+                fill={colorA}
+                opacity={hoverIdx == null || isHovered ? 1 : 0.45}
+              />
+              <rect
+                x={gx + groupW / 2 + 1}
+                y={y(d.b)}
+                width={barW}
+                height={Math.max(1, hb)}
+                rx="3"
+                fill={colorB}
+                opacity={hoverIdx == null || isHovered ? 1 : 0.45}
+              />
+              <text x={gx + groupW / 2} y={height - 6} textAnchor="middle" fontSize="10" fontFamily={C.mono} fill={C.inkFaint}>
+                {d.label}
+              </text>
+              <rect
+                x={gx}
+                y={padding.top}
+                width={groupW}
+                height={innerH}
+                fill="transparent"
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+                style={{ cursor: "crosshair" }}
+              />
+            </g>
+          );
+        })}
+      </svg>
+      {hovered ? (
+        <div
+          style={{
+            position: "absolute",
+            left: `${((hoverIdx + 0.5) / data.length) * 100}%`,
+            top: 4,
+            transform: hoverIdx > data.length / 2 ? "translate(-100%, 0)" : "translate(0, 0)",
+            background: C.tooltipBg,
+            color: C.tooltipFg,
+            borderRadius: 8,
+            padding: "8px 11px",
+            fontSize: 12,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            zIndex: 2,
+          }}
+        >
+          <div style={{ fontFamily: C.mono, color: C.tooltipFgDim, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{hovered.label}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>{nameA}</span>
+            <span style={{ fontFamily: C.mono, fontWeight: 700 }}>{formatValue(hovered.a)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>{nameB}</span>
+            <span style={{ fontFamily: C.mono, fontWeight: 700 }}>{formatValue(hovered.b)}</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Small donut for a categorical mix (≤6 slices) using the sequential gold
+// ramp — each item gets one hue step, so category ranking reads by depth.
+export function Donut({ data, formatValue = (v) => v, centerLabel, size = 168 }) {
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (!data || data.length === 0 || total <= 0) {
+    return <div style={{ fontSize: 13, color: C.inkFaint, padding: "18px 4px" }}>No data yet.</div>;
+  }
+  const cx = size / 2;
+  const cy = size / 2;
+  const R = size * 0.42;
+  const r = size * 0.25;
+  let angle = -Math.PI / 2;
+  const seq = C.seq;
+  const arcs = data.map((d, i) => {
+    const sweep = (d.value / total) * Math.PI * 2;
+    const a0 = angle;
+    const a1 = angle + sweep;
+    angle = a1;
+    const large = sweep > Math.PI ? 1 : 0;
+    const p = (rad, ang) => [cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad];
+    const [lx, ly] = p(R, a0);
+    const [ex, ey] = p(R, a1);
+    const [lxi, lyi] = p(r, a1);
+    const [exi, eyi] = p(r, a0);
+    const color = seq[i % seq.length];
+    const path = `M ${lx.toFixed(1)} ${ly.toFixed(1)} A ${R} ${R} 0 ${large} 1 ${ex.toFixed(1)} ${ey.toFixed(1)} L ${lxi.toFixed(1)} ${lyi.toFixed(1)} A ${r} ${r} 0 ${large} 0 ${exi.toFixed(1)} ${eyi.toFixed(1)} Z`;
+    return { ...d, path, color, i };
+  });
+  const hovered = hoverIdx != null ? arcs[hoverIdx] : null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          {arcs.map((a) => (
+            <path
+              key={a.i}
+              d={a.path}
+              fill={a.color}
+              stroke={C.paper}
+              strokeWidth="2"
+              opacity={hoverIdx == null || hoverIdx === a.i ? 1 : 0.45}
+              onMouseEnter={() => setHoverIdx(a.i)}
+              onMouseLeave={() => setHoverIdx(null)}
+              style={{ cursor: "pointer" }}
+            />
+          ))}
+          <text x={cx} y={cy - 3} textAnchor="middle" fontFamily={C.mono} fontWeight="700" fontSize="15" fill={C.ink}>
+            {hovered ? formatValue(hovered.value) : centerLabel || formatValue(total)}
+          </text>
+          <text x={cx} y={cy + 13} textAnchor="middle" fontFamily={C.mono} fontSize="9.5" fill={C.inkFaint} style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {hovered ? hovered.label : "total"}
+          </text>
+        </svg>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1, minWidth: 0 }}>
+        {arcs.map((a) => (
+          <div
+            key={a.i}
+            onMouseEnter={() => setHoverIdx(a.i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, cursor: "pointer", opacity: hoverIdx == null || hoverIdx === a.i ? 1 : 0.55 }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.inkDim, minWidth: 0 }}>
+              <i style={{ width: 9, height: 9, borderRadius: 2, background: a.color, flexShrink: 0, display: "inline-block" }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.label}</span>
+            </span>
+            <span style={{ fontFamily: C.mono, fontWeight: 650, color: C.ink, flexShrink: 0 }}>{Math.round((a.value / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -439,7 +673,7 @@ export function TrendLine({ points, height = 170, formatValue = (v) => v }) {
             <circle cx={x(hoverIdx)} cy={y(hovered.value)} r={4} fill={C.accent} stroke={C.paper} strokeWidth={2} />
           </>
         ) : null}
-        <text x={x(points.length - 1)} y={y(last.value) - 10} textAnchor="end" fontSize={11} fontWeight={700} fill={C.ink}>
+        <text x={x(points.length - 1)} y={y(last.value) - 10} textAnchor="end" fontSize={11} fontWeight={700} fill={C.ink} fontFamily={C.mono}>
           {formatValue(last.value)}
         </text>
       </svg>
@@ -450,8 +684,8 @@ export function TrendLine({ points, height = 170, formatValue = (v) => v }) {
             left: `${(x(hoverIdx) / width) * 100}%`,
             top: 0,
             transform: hoverIdx > points.length / 2 ? "translate(-100%, 0)" : "translate(0, 0)",
-            background: C.ink,
-            color: "#fff",
+            background: C.tooltipBg,
+            color: C.tooltipFg,
             borderRadius: 6,
             padding: "6px 10px",
             fontSize: 12,
@@ -459,8 +693,8 @@ export function TrendLine({ points, height = 170, formatValue = (v) => v }) {
             pointerEvents: "none",
           }}
         >
-          <div style={{ fontWeight: 700 }}>{formatValue(hovered.value)}</div>
-          <div style={{ color: "#C7CCE0", fontSize: 11 }}>{hovered.label}</div>
+          <div style={{ fontWeight: 700, fontFamily: C.mono, fontVariantNumeric: "tabular-nums" }}>{formatValue(hovered.value)}</div>
+          <div style={{ color: C.tooltipFgDim, fontSize: 11 }}>{hovered.label}</div>
         </div>
       ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.inkFaint, marginTop: 6 }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { C } from "./tokens.js";
 import { Spinner } from "./ui.jsx";
 import { callAdmin } from "./api.js";
 import Sidebar, { PAGES } from "./Sidebar.jsx";
@@ -59,28 +60,28 @@ function ErrorBanner({ detail, onRetry }) {
     hint = "Network error or the API function crashed. Check Vercel → Deployments → latest → Functions logs.";
   }
   return (
-    <div style={{ border: "1px solid #C43D3D33", background: "#C43D3D0F", borderRadius: 12, padding: 18, maxWidth: 640 }}>
-      <div style={{ color: "#C43D3D", fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+    <div style={{ border: `1px solid color-mix(in srgb, ${C.danger} 20%, transparent)`, background: C.dangerWash, borderRadius: 12, padding: 18, maxWidth: 640 }}>
+      <div style={{ color: C.danger, fontSize: 15, fontWeight: 700, marginBottom: 6, fontFamily: C.display }}>{title}</div>
       {serverMsg ? (
-        <div style={{ fontSize: 12.5, color: "#5B6478", marginBottom: hint ? 10 : 0 }}>
+        <div style={{ fontSize: 12.5, color: C.inkDim, marginBottom: hint ? 10 : 0 }}>
           <strong>Server said:</strong> {serverMsg}
           {status ? <> · HTTP {status}</> : null}
         </div>
       ) : status ? (
-        <div style={{ fontSize: 12.5, color: "#5B6478", marginBottom: hint ? 10 : 0 }}>HTTP {status}</div>
+        <div style={{ fontSize: 12.5, color: C.inkDim, marginBottom: hint ? 10 : 0 }}>HTTP {status}</div>
       ) : null}
-      {hint ? <div style={{ fontSize: 13, color: "#11131D", lineHeight: 1.5, marginBottom: 12 }}>{hint}</div> : null}
+      {hint ? <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.5, marginBottom: 12 }}>{hint}</div> : null}
       <button
         onClick={onRetry}
         style={{
-          fontFamily: "'Hanken Grotesk', sans-serif",
+          fontFamily: C.body,
           fontSize: 13,
           fontWeight: 700,
           padding: "8px 14px",
           borderRadius: 8,
-          border: "1px solid #CDD4E8",
-          background: "#fff",
-          color: "#11131D",
+          border: `1px solid ${C.lineStrong}`,
+          background: C.paper,
+          color: C.ink,
           cursor: "pointer",
         }}
       >

@@ -1,0 +1,88 @@
+/* Design tokens as CSS custom properties — lets every page (all consuming
+   C.xxx from tokens.js, which points at these vars) support light/dark
+   automatically with zero per-page changes. Palette: warm paper + gold
+   accent in light, command-deck slate + gold in dark. Income/expense and
+   the sequential gold ramp are colorblind-validated (dataviz skill,
+   validate_palette.js — CVD ΔE well above the 8 floor in both modes). */
+
+:root {
+  --bg: #FAFAF8;
+  --paper: #FFFFFF;
+  --paper-2: #F4F5F2;
+  --sunken: #EEF0EC;
+  --line: #E3E5E0;
+  --line-strong: #CBD0C7;
+
+  --ink: #161A20;
+  --ink-dim: #525C6B;
+  --ink-faint: #8A93A0;
+
+  --accent: #B7860B;
+  --accent-deep: #946B08;
+  --accent-light: #D1A233;
+  --accent-wash: rgba(183, 134, 11, 0.10);
+
+  --ok: #1E9E76;
+  --ok-wash: rgba(30, 158, 118, 0.10);
+  --warn: #C47D28;
+  --warn-wash: rgba(196, 125, 40, 0.10);
+  --danger: #CE3F3C;
+  --danger-wash: rgba(206, 63, 60, 0.10);
+
+  --c-income: #1E9E90;
+  --c-expense: #D85A32;
+
+  --seq-0: #F0E2BE;
+  --seq-1: #E6C878;
+  --seq-2: #D6A83E;
+  --seq-3: #B7860B;
+  --seq-4: #8A6408;
+
+  /* Fixed across both themes on purpose — a tooltip is a small floating
+     chip that stays legible regardless of page theme, so it must never
+     invert when --ink swaps meaning between light and dark mode. */
+  --tooltip-bg: #1A1D24;
+  --tooltip-fg: #F3F5F8;
+  --tooltip-fg-dim: rgba(243, 245, 248, 0.62);
+
+  /* Text sitting on a solid --accent fill (buttons, active pills, chat
+     bubbles) — the accent is a mid-tone gold in both themes, so a single
+     dark ink reads legibly on it either way; white would not. */
+  --on-accent: #1A1205;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C0F14;
+    --paper: #141922;
+    --paper-2: #1B222D;
+    --sunken: #10151C;
+    --line: #28323F;
+    --line-strong: #37424F;
+
+    --ink: #EAEEF5;
+    --ink-dim: #98A4B6;
+    --ink-faint: #606B7B;
+
+    --accent: #F0B429;
+    --accent-deep: #C99418;
+    --accent-light: #F4C64F;
+    --accent-wash: rgba(240, 180, 41, 0.14);
+
+    --ok: #35B98A;
+    --ok-wash: rgba(53, 185, 138, 0.14);
+    --warn: #E0913A;
+    --warn-wash: rgba(224, 145, 58, 0.14);
+    --danger: #E5544E;
+    --danger-wash: rgba(229, 84, 78, 0.14);
+
+    --c-income: #22A493;
+    --c-expense: #DA6A3C;
+
+    --seq-0: #4A3D1A;
+    --seq-1: #8A6B1E;
+    --seq-2: #BD9127;
+    --seq-3: #E0B23A;
+    --seq-4: #F3CE63;
+  }
+}
