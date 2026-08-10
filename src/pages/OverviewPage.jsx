@@ -16,9 +16,11 @@ import {
   Donut,
   DistributionBars,
   Button,
+  CeoCard,
+  DeptCard,
 } from "../ui.jsx";
 import { fetchApprovals, fetchAgentEvents } from "../api.js";
-import { AGENTS, AGENT_ACCENT } from "../agents.js";
+import { AGENTS, AGENT_ACCENT, SUB_AGENTS } from "../agents.js";
 import { loadJSON, saveJSON } from "../persist.js";
 
 const GOAL_KEY = "digibi_north_star";
@@ -66,8 +68,7 @@ function buildMonthlySeries(transactions, expenses, months = 6) {
 // A goal the owner sets and revises themselves — target is never invented,
 // "current" defaults to the best real proxy available (MRR) but stays
 // editable since MRR tracking isn't wired up yet.
-function NorthStar({ mrrZAR }) {
-  const [goal, setGoal] = useState(() => loadJSON(GOAL_KEY, DEFAULT_GOAL));
+function NorthStar({ mrrZAR, goal, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draftLabel, setDraftLabel] = useState(goal.label);
   const [draftTarget, setDraftTarget] = useState(String(goal.target));
@@ -82,8 +83,7 @@ function NorthStar({ mrrZAR }) {
       target: parseFloat(draftTarget.replace(/[^\d.]/g, "")) || goal.target,
       current: draftCurrent.trim() === "" ? undefined : parseFloat(draftCurrent.replace(/[^\d.]/g, "")),
     };
-    setGoal(next);
-    saveJSON(GOAL_KEY, next);
+    onSave(next);
     setEditing(false);
   };
 
@@ -141,39 +141,43 @@ function NorthStar({ mrrZAR }) {
   );
 }
 
-// Condensed status strip for every department agent — click through to the
-// full Agent Console for chat + approvals. Status/metric fields here are
-// the same ones Agent Console itself displays; nothing new is fabricated.
-function OrgPulse({ go }) {
+// Full org section — a Chief of Staff summary card (real agent/task/goal
+// counts, nothing invented) above a grid of every department, each showing
+// its lead, focus, sub-agent chips and goal contribution. Click-through
+// lands on the full Agent Console for chat + approvals.
+function OrgSection({ go, tasksOpen, pendingApprovals, goalPct }) {
+  const depts = AGENTS.filter((a) => a.id !== "orchestrator");
+  const orchestrator = AGENTS.find((a) => a.id === "orchestrator");
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {AGENTS.map((a) => {
-        const accent = AGENT_ACCENT[a.id];
-        const dot = a.status === "running" ? C.ok : a.status === "pending" ? C.warn : C.inkFaint;
-        return (
-          <button
+    <div>
+      <CeoCard
+        name={orchestrator.name}
+        role={orchestrator.role}
+        directive={`Coordinating ${depts.length} live department agents against the North Star. ${pendingApprovals == null ? "…" : pendingApprovals} approval${pendingApprovals === 1 ? "" : "s"} waiting on you.`}
+        stats={[
+          { label: "Agents live", value: String(depts.length) },
+          { label: "Tasks in flight", value: String(tasksOpen) },
+          { label: "Goal alignment", value: `${goalPct.toFixed(0)}%` },
+        ]}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+        {depts.map((a) => (
+          <DeptCard
             key={a.id}
+            name={a.name}
+            accent={AGENT_ACCENT[a.id]}
+            status={a.status}
+            statusLabel={a.statusLabel}
+            lead={a.lead}
+            focus={a.tagline}
+            subAgents={SUB_AGENTS[a.id]}
+            contribution={a.contribution}
+            metricLabel={a.metricLabel}
+            metricValue={a.metricValue}
             onClick={() => go("/agents")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "7px 12px",
-              borderRadius: 999,
-              border: `1px solid ${C.line}`,
-              background: C.paper,
-              cursor: "pointer",
-              fontFamily: C.body,
-            }}
-            title={a.statusLabel}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: dot, flexShrink: 0 }} />
-            <span style={{ fontSize: 12.5, fontWeight: 650, color: C.ink }}>{a.name}</span>
-            <span style={{ width: 3, height: 3, borderRadius: 99, background: C.lineStrong }} />
-            <span style={{ fontSize: 11.5, fontFamily: C.mono, color: accent }}>{a.metricValue}</span>
-          </button>
-        );
-      })}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -221,6 +225,13 @@ function ActivityPreview({ go }) {
 export default function OverviewPage({ data, go }) {
   const [range, setRange] = useState(30);
   const [pendingApprovals, setPendingApprovals] = useState(null);
+  const [goal, setGoal] = useState(() => loadJSON(GOAL_KEY, DEFAULT_GOAL));
+  const saveGoal = (next) => {
+    setGoal(next);
+    saveJSON(GOAL_KEY, next);
+  };
+  const goalCurrent = goal.current != null ? goal.current : data.accounts.mrrZAR;
+  const goalPct = goal.target > 0 ? Math.min(100, Math.max(0, (goalCurrent / goal.target) * 100)) : 0;
 
   useEffect(() => {
     let alive = true;
@@ -296,7 +307,7 @@ export default function OverviewPage({ data, go }) {
       </PageDek>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14, marginBottom: 18 }} className="grid-2-fallback">
-        <NorthStar mrrZAR={data.accounts.mrrZAR} />
+        <NorthStar mrrZAR={data.accounts.mrrZAR} goal={goal} onSave={saveGoal} />
         <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <span style={{ fontFamily: C.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: C.accent, fontWeight: 700 }}>Chief of Staff</span>
@@ -368,8 +379,9 @@ export default function OverviewPage({ data, go }) {
       </Grid2>
 
       <Rule />
-      <SectionTitle>The org, at a glance</SectionTitle>
-      <OrgPulse go={go} />
+      <Eyebrow>Command</Eyebrow>
+      <SectionTitle>The org, working as one</SectionTitle>
+      <OrgSection go={go} tasksOpen={data.tasks.openCount} pendingApprovals={pendingApprovals} goalPct={goalPct} />
 
       <Rule />
       <SectionTitle>This week, by group</SectionTitle>

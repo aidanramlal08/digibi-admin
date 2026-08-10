@@ -619,6 +619,130 @@ export function Donut({ data, formatValue = (v) => v, centerLabel, size = 168 })
   );
 }
 
+// Chief-of-Staff summary card that sits above the department grid — one row
+// of real org-wide stats (agents live, tasks in flight, goal alignment).
+export function CeoCard({ name, role, directive, stats }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 18,
+        flexWrap: "wrap",
+        background: `linear-gradient(160deg, ${C.accentWash}, transparent 65%)`,
+        border: `1px solid ${C.line}`,
+        borderRadius: 14,
+        padding: "18px 20px",
+        marginBottom: 16,
+      }}
+    >
+      <span
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 14,
+          flexShrink: 0,
+          background: `radial-gradient(circle at 35% 30%, ${C.accentLight}, ${C.accent} 55%, ${C.accentDeep} 100%)`,
+          color: C.onAccent,
+          display: "grid",
+          placeItems: "center",
+          fontFamily: C.display,
+          fontWeight: 800,
+          fontSize: 17,
+        }}
+      >
+        {name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+      </span>
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+        <div style={{ fontFamily: C.display, fontSize: 16, fontWeight: 800, color: C.ink }}>{name}</div>
+        <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 1 }}>{role}</div>
+        {directive ? <p style={{ fontSize: 12.5, color: C.inkDim, margin: "8px 0 0", maxWidth: "60ch", lineHeight: 1.5 }}>{directive}</p> : null}
+      </div>
+      <div style={{ display: "flex", gap: 22, flexShrink: 0 }}>
+        {stats.map((s) => (
+          <div key={s.label} style={{ textAlign: "right" }}>
+            <div style={{ fontFamily: C.mono, fontSize: 20, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700, marginTop: 4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// A department card: status + name + pill, lead persona, focus copy, its
+// sub-agent chips on the face, a goal-contribution bar, and a metric row.
+// Used by both the Command Deck org section and the Agent Console grid.
+export function DeptCard({ name, accent, status, statusLabel, lead, focus, subAgents, contribution, metricLabel, metricValue, onClick }) {
+  const dotColor = status === "running" ? C.ok : status === "pending" ? C.warn : C.inkFaint;
+  const subDot = { good: C.ok, warn: C.warn, idle: C.inkFaint };
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: "left",
+        background: C.paper,
+        border: `1px solid ${C.line}`,
+        borderRadius: 12,
+        padding: 14,
+        cursor: onClick ? "pointer" : "default",
+        fontFamily: C.body,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        transition: "border-color 120ms, box-shadow 120ms, transform 120ms",
+      }}
+      onMouseEnter={onClick ? (e) => {
+        e.currentTarget.style.borderColor = accent;
+        e.currentTarget.style.boxShadow = `0 0 0 3px color-mix(in srgb, ${accent} 15%, transparent)`;
+        e.currentTarget.style.transform = "translateY(-1px)";
+      } : undefined}
+      onMouseLeave={onClick ? (e) => {
+        e.currentTarget.style.borderColor = C.line;
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.transform = "none";
+      } : undefined}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexWrap: "wrap", rowGap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0, marginTop: 5 }} />
+        <span style={{ fontFamily: C.display, fontSize: 14, fontWeight: 700, color: C.ink, flex: "1 1 100px", minWidth: 100, lineHeight: 1.25 }}>{name}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: dotColor, background: `color-mix(in srgb, ${dotColor} 15%, transparent)`, borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}>{statusLabel}</span>
+      </div>
+      {lead ? (
+        <div style={{ fontFamily: C.mono, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 700 }}>Lead · {lead}</div>
+      ) : null}
+      <div style={{ fontSize: 12, color: C.inkDim, lineHeight: 1.45, minHeight: 34 }}>{focus}</div>
+      {subAgents && subAgents.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {subAgents.map((s) => (
+            <span key={s.name} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: C.inkDim, background: C.sunken, borderRadius: 20, padding: "3px 8px 3px 6px" }}>
+              <i style={{ width: 6, height: 6, borderRadius: "50%", background: subDot[s.status] || C.inkFaint, display: "inline-block", flexShrink: 0 }} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {contribution != null ? (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.inkFaint, fontWeight: 700, marginBottom: 4 }}>
+            <span style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Goal contribution</span>
+            <span style={{ fontFamily: C.mono, color: C.ink }}>{contribution}%</span>
+          </div>
+          <div style={{ height: 5, borderRadius: 3, background: C.sunken, overflow: "hidden" }}>
+            <div style={{ width: `${contribution}%`, height: "100%", background: accent, borderRadius: 3 }} />
+          </div>
+        </div>
+      ) : null}
+      {metricLabel ? (
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+          <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600 }}>{metricLabel}</span>
+          <span style={{ fontFamily: C.display, fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", color: C.ink }}>{metricValue}</span>
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
 // Dependency-free SVG trend line: single series, hairline baseline, area wash,
 // crosshair + tooltip on hover.
 export function TrendLine({ points, height = 170, formatValue = (v) => v }) {

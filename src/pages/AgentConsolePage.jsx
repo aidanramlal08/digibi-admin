@@ -1,57 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { C } from "../tokens.js";
-import { Eyebrow, PageTitle, PageDek, SectionTitle } from "../ui.jsx";
+import { Eyebrow, PageTitle, PageDek, SectionTitle, DeptCard } from "../ui.jsx";
 import { AGENTS, AGENT_ACCENT, SUB_AGENTS } from "../agents.js";
 import { fetchApprovals, actOnApproval, fetchAgentEvents, askAgent } from "../api.js";
 import { readFileAsAttachment, validateAttachmentSet, isImage, ACCEPT_ATTR } from "../attachments.js";
 import { loadJSON, saveJSON, stripAttachmentBytes, MAX_PERSISTED_MESSAGES } from "../persist.js";
 
 const CHAT_STORAGE_KEY = "digibi_agent_chats";
-
-// Compact card for the 3x2 grid. Click opens the full detail modal.
-function AgentCard({ agent, onOpen }) {
-  const accent = AGENT_ACCENT[agent.id];
-  const status = agent.status;
-  const dotColor = status === "running" ? C.ok : status === "pending" ? C.warn : C.inkFaint;
-  return (
-    <button
-      onClick={() => onOpen(agent.id)}
-      style={{
-        textAlign: "left",
-        background: C.paper,
-        border: `1px solid ${C.line}`,
-        borderRadius: 12,
-        padding: 14,
-        cursor: "pointer",
-        fontFamily: C.body,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        transition: "border-color 120ms, box-shadow 120ms, transform 120ms",
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${accent}18`; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.line; e.currentTarget.style.boxShadow = "none"; }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 28, height: 28, borderRadius: 8, background: `${accent}22`, color: accent, display: "grid", placeItems: "center", fontFamily: C.display, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-          {agent.name.charAt(0)}
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: C.display, fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.15 }}>{agent.name}</div>
-          <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent.role}</div>
-        </div>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} title={agent.statusLabel} />
-      </div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginTop: 4 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.inkFaint, fontWeight: 600 }}>{agent.metricLabel}</div>
-          <div style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", color: C.ink, lineHeight: 1.1 }}>{agent.metricValue}</div>
-        </div>
-        <span style={{ fontSize: 11, color: accent, fontWeight: 700, whiteSpace: "nowrap" }}>Open →</span>
-      </div>
-    </button>
-  );
-}
 
 // Full agent detail — pipeline, absorbs, tools. Rendered inside the modal.
 function AgentDetail({ agent }) {
@@ -680,8 +635,23 @@ export default function AgentConsolePage({ data }) {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }} className="agent-grid">
-        {AGENTS.map((a) => <AgentCard key={a.id} agent={a} onOpen={openAgentDetail} />)}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, marginBottom: 16 }}>
+        {AGENTS.map((a) => (
+          <DeptCard
+            key={a.id}
+            name={a.name}
+            accent={AGENT_ACCENT[a.id]}
+            status={a.status}
+            statusLabel={a.statusLabel}
+            lead={a.lead}
+            focus={a.tagline}
+            subAgents={SUB_AGENTS[a.id]}
+            contribution={a.contribution}
+            metricLabel={a.metricLabel}
+            metricValue={a.metricValue}
+            onClick={() => openAgentDetail(a.id)}
+          />
+        ))}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "5fr 4fr", gap: 16 }} className="grid-2-fallback">
@@ -701,14 +671,6 @@ export default function AgentConsolePage({ data }) {
         />
       ) : null}
 
-      <style>{`
-        @media (max-width: 900px) {
-          .agent-grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-        @media (max-width: 560px) {
-          .agent-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </div>
   );
 }
